@@ -12,7 +12,7 @@ from sbws.util.parser import create_parser
 import logging
 
 log = logging.getLogger(__name__)
-
+print(log.name)
 
 def main():
     parser = create_parser()

@@ -87,6 +87,7 @@ def configure_logging(conf):
     with NamedTemporaryFile('w+t') as fd:
         conf.write(fd)
         fd.seek(0, 0)
+        print(fd.name)
         logging.config.fileConfig(fd.name)
 
 
