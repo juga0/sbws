@@ -86,7 +86,10 @@ class Relay:
         """
         # Even if this key is called master-key-ed25519 in dir-spec.txt,
         # it seems that stem parses it as ed25519_master_key
-        return self._from_desc('ed25519_master_key').rstrip('=')
+        ed25519 = self._from_desc('ed25519_master_key')
+        if ed25519 is not None:
+            return ed25519.rstrip('=')
+        return None
 
 
 class RelayList:
@@ -190,7 +193,7 @@ class RelayList:
                 if policy is not None and policy.can_exit_to(port=port):
                     exits.append(exit)
             except KeyError as e:
-                log.exception('Got that KeyError in stem again...: %s', e)
+                log.debug('Got that KeyError in stem again...: %s', port)
                 continue
         return exits
 
