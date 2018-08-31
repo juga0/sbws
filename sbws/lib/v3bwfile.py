@@ -257,13 +257,17 @@ class V3BWLine(object):
         kwargs.update(cls.result_types_from_results(results))
         # useful args for scaling
         if success_results:
-            # maybe it should be the last
-            kwargs['desc_avg_bw_bs'] = results[0].relay_average_bandwidth
+            # the most recent should be the last
+            kwargs['desc_avg_bw_bs'] = results[-1].relay_average_bandwidth
             kwargs['rtt'] = cls.rtt_from_results(success_results)
             bw = cls.bw_bs_median_from_results(success_results)
             kwargs['bw_bs_mean'] = cls.bw_bs_mean_from_results(success_results)
             kwargs['bw_bs_median'] = cls.bw_bs_median_from_results(
                 success_results)
+            kwargs['desc_obs_bw_bs_last'] = \
+                cls.desc_obs_bw_bs_last_from_results(success_results)
+            kwargs['desc_obs_bw_bs_mean'] = \
+                cls.desc_obs_bw_bs_mean_from_results(success_results)
             bwl = cls(node_id, bw, **kwargs)
             return bwl
         return None
