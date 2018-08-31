@@ -377,7 +377,7 @@ class V3BWFile(object):
         self.bw_lines = v3bwlines
 
     def __str__(self):
-        return str(self.header) + ''.join([str(bw_line)
+        return str(self.header) + ''.join([str(bw_line) or ''
                                            for bw_line in self.bw_lines])
 
     @classmethod
@@ -405,10 +405,14 @@ class V3BWFile(object):
         # TODO: change scaling_method to TORFLOW_SCALING before getting this
         # in production
         log.info('Processing results to generate a bandwidth list file.')
+        header = V3BWHeader.from_results(results, state_fpath)
         bw_lines_raw = []
         for fp in results.keys():
             l = V3BWLine.from_results(results[fp])
-            bw_lines_raw.append(l)
+            if l is not None:
+                bw_lines_raw.append(l)
+        if not bw_lines_raw:
+            return cls(header, [])
         if scaling_method == SBWS_SCALING:
             bw_lines = cls.bw_sbws_scale(bw_lines_raw, scale_constant)
             cls.warn_if_not_accurate_enough(bw_lines, scale_constant)
@@ -419,7 +423,6 @@ class V3BWFile(object):
         else:
             bw_lines = cls.bw_kb(bw_lines_raw)
             # log.debug(bw_lines[-1])
-        header = V3BWHeader.from_results(results, state_fpath)
         f = cls(header, bw_lines)
         return f
 
@@ -668,7 +671,6 @@ class V3BWFile(object):
                     ) * desc_obs_bw
                 / 1000), 1)
         return sorted(bw_lines_tf, key=lambda x: x.bw, reverse=reverse)
-
 
     @property
     def sum_bw(self):
