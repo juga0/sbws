@@ -42,8 +42,7 @@ BW_KEYVALUES_FILE = BW_KEYVALUES_BASIC + \
                     ['master_key_ed25519', 'nick', 'rtt', 'time',
                      'success', 'error_stream', 'error_circ', 'error_misc']
 BW_KEYVALUES_EXTRA_BWS = ['bw_bs_median', 'bw_bs_mean', 'desc_avg_bw_bs',
-                          'desc_obs_bw_bs_last', 'desc_obs_bw_bs_mean',
-                          'num_desc_obs_bw_bs']
+                          'desc_obs_bw_bs_last', 'desc_obs_bw_bs_mean']
 BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS
 BW_KEYVALUES_INT = ['bw', 'rtt', 'success', 'error_stream',
                     'error_circ', 'error_misc'] + BW_KEYVALUES_EXTRA_BWS
