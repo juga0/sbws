@@ -94,6 +94,9 @@ def main(args, conf):
                                     scaling_method,
                                     torflow_cap=args.torflow_bw_margin,
                                     torflow_round_digs=args.torflow_round_digs,
+                                    secs_recent=args.secs_recent,
+                                    secs_away=args.secs_away,
+                                    min_num=args.min_num)
     output = args.output or \
         conf.getpath('paths', 'v3bw_fname').format(now_fname())
     bw_file.write(output)
