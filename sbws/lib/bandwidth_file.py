@@ -388,11 +388,12 @@ class BandwidthDocument(descriptor.Descriptor, BandwidthFile):
         return cls.parse_content(attr)
 
     @classmethod
-    def create(cls, attr=None, exclude=(), validate=True, sign=False, signing_key=None):
+    def create(cls, attr=None, exclude=(), validate=True, sign=False,
+               signing_key=None):
         return cls.parse_content(attr)
 
     def _required_fields(self):
         return REQUIRED_FIELDS
 
     def _single_fields(self):
-      return REQUIRED_FIELDS + SINGLE_FIELDS
+        return REQUIRED_FIELDS + SINGLE_FIELDS
