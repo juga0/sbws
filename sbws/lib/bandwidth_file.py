@@ -3,6 +3,7 @@
 (bw) used by bandwidth authorities."""
 import logging
 import os
+from stem import descriptor
 
 from sbws import __version__
 from sbws.globals import SPEC_VERSION, BW_LINE_SIZE
@@ -76,6 +77,10 @@ BANDWIDTH_LINE_KEY_VALUES_INT = \
 BANDWIDTH_LINE_KEY_VALUES_STR = \
     list(set(BANDWIDTH_LINE_KEY_VALUES_ALL_V11).difference(
         set(BANDWIDTH_LINE_KEY_VALUES_INT)))
+
+REQUIRED_FIELDS = BANDWIDTH_LINE_KEY_VALUES_V10
+SINGLE_FIELDS = BANDWIDTH_LINE_KEY_VALUES_V11 \
+    + BANDWIDTH_LINE_KEY_VALUES_BANDWIDTH_VALUES_V11
 
 
 class BandwidthHeader(object):
@@ -365,3 +370,38 @@ class BandwidthFile(object):
                       .format(out_link_tmp, output_basename,
                               out_link, output_basename))
             os.rename(out_link_tmp, out_link)
+
+
+def _parse_file(bandwidth_file, validate=False, **kwargs):
+    with open(bandwidth_file) as fd:
+        bandwidth_content = fd.read()
+    annotations = None
+    bandwidth_text = bytes.join(b'', bandwidth_content)
+
+    yield BandwidthDocument(bandwidth_text, validate, annotations, **kwargs)
+
+
+class BandwidthDocument(descriptor.Descriptor, BandwidthFile):
+    """"""
+    def __init__(self, raw_contents, validate=False, annotations=None):
+        """
+        """
+        super(BandwidthDocument, self).__init__(raw_contents,
+                                                lazy_load=not validate)
+        self._annotation_lines = []
+        entry = self.parse_content(raw_contents)
+        self._entries = [entry]
+
+    @classmethod
+    def content(cls, attr=None, exclude=(), sign=False):
+        return cls.parse_content(attr)
+
+    @classmethod
+    def create(cls, attr=None, exclude=(), validate=True, sign=False, signing_key=None):
+        return cls.parse_content(attr)
+
+    def _required_fields(self):
+        return REQUIRED_FIELDS
+
+    def _single_fields(self):
+      return REQUIRED_FIELDS + SINGLE_FIELDS
