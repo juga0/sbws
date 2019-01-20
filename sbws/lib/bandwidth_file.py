@@ -8,8 +8,7 @@ from stem import descriptor
 from sbws import __version__
 from sbws.globals import SPEC_VERSION, BW_LINE_SIZE
 from sbws.util.filelock import DirectoryLock
-from sbws.util.timestamp import (now_isodt_str, unixts_to_isodt_str,
-                                 now_unixts)
+from sbws.util.timestamp import (now_isodt_str, unixts_to_isodt_str)
 
 
 log = logging.getLogger(__name__)
@@ -199,14 +198,12 @@ class BandwidthLine(object):
             - error_misc, int
 
         """
-        print('__init__')
         # Check types
         node_id = node_id or kwargs.get('node_id', None)
         bw = bw or kwargs.get('bw', None)
         assert isinstance(node_id, str) and node_id.startswith("$")
         assert isinstance(bw, int)
         for k, v in kwargs.items():
-            print(k, v)
             if k in BANDWIDTH_LINE_KEY_VALUES_INT:
                 assert isinstance(v, int)
             elif k in BANDWIDTH_LINE_KEY_VALUES_STR:
@@ -223,7 +220,6 @@ class BandwidthLine(object):
 
     @classmethod
     def parse_bandwidth_line_str_v1(cls, line_str):
-        print('parsing line')
         if line_str == '':
             return None
         assert isinstance(line_str, str)
@@ -239,7 +235,6 @@ class BandwidthLine(object):
         for k, v in kwargs.items():
             if k in BANDWIDTH_LINE_KEY_VALUES_INT:
                 kwargs[k] = int(v)
-        print(kwargs)
         return cls(**kwargs)
 
     @property
@@ -294,7 +289,6 @@ class BandwidthFile(object):
 
     @property
     def _bandwidth_file_str_v1(self):
-        print(self.bandwidth_lines)
         return str(self.header) + BANDWIDTH_HEADER_TERMINATOR_LINE_V11 \
             + ''.join([str(bw_line) for bw_line in self.bandwidth_lines])
 
@@ -305,15 +299,12 @@ class BandwidthFile(object):
         except ValueError:
             log.debug('It is not a Bandwidth File or it is not version 1.0.')
             return None, None
-        print(index_terminator)
         header = BandwidthHeader.parse_header_lines_v11(
             lines[0:index_terminator])
-        print(header)
-        print(lines[index_terminator + 1:-1])
         # Last line should be a new line
         bandwidth_lines = [BandwidthLine.parse_bandwidth_line_str_v1(line)
-                    for line in lines[index_terminator + 1:-1]
-                    if line]
+                           for line in lines[index_terminator + 1:-1]
+                           if line]
         return header, bandwidth_lines
 
     @staticmethod
