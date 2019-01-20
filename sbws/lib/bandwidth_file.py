@@ -347,9 +347,7 @@ class BandwidthFile(object):
         out_link_tmp = out_link + '.tmp'
         with DirectoryLock(out_dir):
             with open(output, 'wt') as fd:
-                fd.write(str(self.header))
-                for line in self.bandwidth_lines:
-                    fd.write(str(line))
+                fd.write(str(self))
             output_basename = os.path.basename(output)
             # To atomically symlink a file, we need to create a temporary link,
             # then rename it to the final link name. (POSIX guarantees that
