@@ -271,16 +271,8 @@ class V3BWLine(object):
 
     :param str node_id:
     :param int bw:
-    :param dict kwargs: extra headers. Currently supported:
+    :param dict kwargs: extra attributes.
 
-        - nickname, str
-        - master_key_ed25519, str
-        - rtt, int
-        - time, str
-        - sucess, int
-        - error_stream, int
-        - error_circ, int
-        - error_misc, int
     """
     def __init__(self, node_id, bw, **kwargs):
         assert isinstance(node_id, str)
