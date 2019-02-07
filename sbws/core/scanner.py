@@ -7,8 +7,10 @@ import uuid
 
 from ..lib.circuitbuilder import GapsCircuitBuilder as CB
 from ..lib.resultdump import ResultDump
-from ..lib.resultdump import ResultSuccess, ResultErrorCircuit
-from ..lib.resultdump import ResultErrorStream
+from ..lib.resultdump import (
+    ResultSuccess, ResultErrorCircuit, ResultErrorStream, ResultError,
+    ResultErrorSecondRelay, ResultErrorDestination
+    )
 from ..lib.relaylist import RelayList
 from ..lib.relayprioritizer import RelayPrioritizer
 from ..lib.destination import DestinationList
@@ -232,15 +234,20 @@ def _pick_ideal_second_hop(relay, dest, rl, cont, is_exit):
 
 def measure_relay(args, conf, destinations, cb, rl, relay):
     log.debug('Measuring %s %s', relay.nickname, relay.fingerprint)
+    our_nick = conf['scanner']['nickname']
     s = requests_utils.make_session(
         cb.controller, conf.getfloat('general', 'http_timeout'))
     # Pick a destionation
     dest = destinations.next()
     if not dest:
-        # XXX: this should return a ResultError
-        log.debug('Unable to get destination to measure %s %s',
+        reason = 'Unable to get destination'
+        log.debug(reason + ' to measure %s %s',
                   relay.nickname, relay.fingerprint)
-        return None
+        return [
+            ResultErrorDestination(relay, [], dest.url, our_nick,
+                                   msg=reason),
+            ]
+
     # Pick a relay to help us measure the given relay. If the given relay is an
     # exit, then pick a non-exit. Otherwise pick an exit.
     helper = None
@@ -259,14 +266,15 @@ def measure_relay(args, conf, destinations, cb, rl, relay):
             circ_fps = [relay.fingerprint, helper.fingerprint]
             nicknames = [relay.nickname, helper.nickname]
     if not helper:
-        # TODO: Return ResultError of some sort
-        log.debug('Unable to pick a 2nd relay to help measure %s (%s)',
+        reason = 'Unable to select a second relay'
+        log.debug(reason + ' to help measure %s (%s)',
                   relay.fingerprint, relay.nickname)
-        return None
-    assert helper
-    assert circ_fps is not None and len(circ_fps) == 2
+        return [
+            ResultErrorSecondRelay(relay, [], dest.url, our_nick,
+                                   msg=reason),
+            ]
+
     # Build the circuit
-    our_nick = conf['scanner']['nickname']
     circ_id, reason = cb.build_circuit(circ_fps)
     if not circ_id:
         log.debug('Could not build circuit with path %s (%s): %s ',
