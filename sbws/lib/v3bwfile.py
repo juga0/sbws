@@ -70,6 +70,9 @@ BANDWIDTH_LINE_KEY_VALUES_MONITOR = [
     # 3.8 relay:  the number of times that sbws has tried to measure
     # this relay, since the last bandwidth file
     'relay_new_measurement_attempt_count',
+    # it's easier to calculate this: the total number of times that sbws
+    # has measured this relay, in the last 5 days
+    'relay_recent_measurement_attempt_count',
     # 3.9 relay:  the number of times that sbws has tried to measure
     # this relay, since the last bandwidth file, but it didn't work
     'relay_new_measurement_failure_count',
@@ -336,6 +339,7 @@ class V3BWLine(object):
             kwargs['master_key_ed25519'] = results[0].master_key_ed25519
         kwargs['time'] = cls.last_time_from_results(results)
         kwargs.update(cls.result_types_from_results(results))
+        kwargs['relay_recent_measurement_attempt_count'] = len(results)
 
         success_results = [r for r in results if isinstance(r, ResultSuccess)]
         if not success_results:
