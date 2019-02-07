@@ -286,6 +286,10 @@ class V3BWHeader(object):
         [setattr(self, k, str(v)) for k, v in kwargs.items()
          if k in STATS_KEYVALUES]
 
+    def add_relays_excluded_count(self, recent_measurement_exclusion_count):
+        self.recent_measurement_exclusion_count = \
+            str(recent_measurement_exclusion_count)
+
 
 class V3BWLine(object):
     """
@@ -580,6 +584,12 @@ class V3BWFile(object):
                                          min_num)
             if line is not None:
                 bw_lines_raw.append(line)
+
+        # Count the relays that are excluded after filtering.
+        recent_measurement_exclusion_count = \
+            len(results.keys()) - len(bw_lines_raw)
+        header.add_relays_excluded_count(recent_measurement_exclusion_count)
+
         if not bw_lines_raw:
             log.info("After applying restrictions to the raw results, "
                      "there is not any. Scaling can not be applied.")
