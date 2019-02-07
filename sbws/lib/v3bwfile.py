@@ -32,10 +32,19 @@ EXTRA_ARG_KEYVALUES = ['software', 'software_version', 'file_created',
 STATS_KEYVALUES = ['number_eligible_relays', 'minimum_number_eligible_relays',
                    'number_consensus_relays', 'percent_eligible_relays',
                    'minimum_percent_eligible_relays']
-KEYVALUES_INT = STATS_KEYVALUES
+BANDWIDTH_HEADER_KEY_VALUES_MONITOR = [
+    # 1.1 header: the number of different consensuses, that sbws has seen,
+    # since the last bandwidth file
+    'new_consensus_count',
+]
+BANDWIDTH_HEADER_KEY_VALUES_INIT = ['earliest_bandwidth', 'generator_started']\
+    + STATS_KEYVALUES \
+    + BANDWIDTH_HEADER_KEY_VALUES_MONITOR
+KEYVALUES_INT = STATS_KEYVALUES + BANDWIDTH_HEADER_KEY_VALUES_MONITOR
 # List of all unordered KeyValues currently being used to generate the file
 UNORDERED_KEYVALUES = EXTRA_ARG_KEYVALUES + STATS_KEYVALUES + \
-                      ['latest_bandwidth']
+                      ['latest_bandwidth'] + \
+                      BANDWIDTH_HEADER_KEY_VALUES_MONITOR
 # List of all the KeyValues currently being used to generate the file
 ALL_KEYVALUES = ['version'] + UNORDERED_KEYVALUES
 TERMINATOR = '====='
@@ -54,9 +63,16 @@ BW_KEYVALUES_EXTRA_BWS = ['bw_median', 'bw_mean', 'desc_bw_avg', 'desc_bw_bur',
                           'desc_bw_obs_last', 'desc_bw_obs_mean',
                           'consensus_bandwidth',
                           'consensus_bandwidth_is_unmeasured']
-BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS
+BANDWIDTH_LINE_KEY_VALUES_MONITOR = [
+    # 1.2 relay: the number of different consensuses, that sbws has seen,
+    # since the last bandwidth file, that have this relay
+    'relay_in_new_consensus_count',
+]
+BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS \
+               + BANDWIDTH_LINE_KEY_VALUES_MONITOR
 BW_KEYVALUES_INT = ['bw', 'rtt', 'success', 'error_stream',
-                    'error_circ', 'error_misc'] + BW_KEYVALUES_EXTRA_BWS
+                    'error_circ', 'error_misc'] + BW_KEYVALUES_EXTRA_BWS \
+                   + BANDWIDTH_LINE_KEY_VALUES_MONITOR
 BW_KEYVALUES = BW_KEYVALUES_BASIC + BW_KEYVALUES_EXTRA
 
 
@@ -132,7 +148,7 @@ class V3BWHeader(object):
         # same as timestamp
         self.latest_bandwidth = unixts_to_isodt_str(timestamp)
         [setattr(self, k, v) for k, v in kwargs.items()
-         if k in EXTRA_ARG_KEYVALUES]
+         if k in BANDWIDTH_HEADER_KEY_VALUES_INIT]
 
     def __str__(self):
         if self.version.startswith('1.'):
