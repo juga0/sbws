@@ -36,6 +36,9 @@ BANDWIDTH_HEADER_KEY_VALUES_MONITOR = [
     # 3.6 header: the number of times that sbws has tried to measure any relay,
     # since the last bandwidth file
     'new_measurement_attempt_count',
+    # it's easier to count the number of relays that were attempted to
+    # be measured in the last 5 days.
+    'recent_measurement_attempt_count',
     # 3.7 header: the number of times that sbws has tried to measure any relay,
     # since the last bandwidth file, but it didn't work
     'new_measurement_failure_count',
@@ -178,6 +181,7 @@ class V3BWHeader(object):
         kwargs['earliest_bandwidth'] = unixts_to_isodt_str(earliest_bandwidth)
         if generator_started is not None:
             kwargs['generator_started'] = generator_started
+        kwargs['recent_measurement_attempt_count'] = str(len(results.keys()))
         h = cls(timestamp, **kwargs)
         return h
 
