@@ -192,6 +192,8 @@ class _ResultType(_StrEnum):
     ErrorCircuit = 'error-circ'
     ErrorStream = 'error-stream'
     ErrorAuth = 'error-auth'
+    ErrorSecondRelay = 'error-second-relay'
+    ErrorDestination = 'error-destination'
 
 
 class Result:
@@ -333,6 +335,10 @@ class Result:
             return ResultErrorStream.from_dict(d)
         elif d['type'] == _ResultType.ErrorAuth.value:
             return ResultErrorAuth.from_dict(d)
+        elif d['type'] == _ResultType.ErrorSecondRelay.value:
+            return ResultErrorSecondRelay.from_dict(d)
+        elif d['type'] == _ResultType.ErrorDestination.value:
+            return ResultErrorDestination.from_dict(d)
         else:
             raise NotImplementedError(
                 'Unknown result type {}'.format(d['type']))
@@ -445,6 +451,52 @@ class ResultErrorStream(ResultError):
                 d['fingerprint'], d['nickname'], d['address'],
                 d['master_key_ed25519'],
                 consensus_count=d.get('consensus_count', None)),
+            d['circ'], d['dest_url'], d['scanner'],
+            msg=d['msg'], t=d['time'])
+
+    def to_dict(self):
+        d = super().to_dict()
+        return d
+
+
+class ResultErrorSecondRelay(ResultError):
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+
+    @property
+    def type(self):
+        return _ResultType.ErrorSecondRelay
+
+    @staticmethod
+    def from_dict(d):
+        assert isinstance(d, dict)
+        return ResultErrorSecondRelay(
+            Result.Relay(
+                d['fingerprint'], d['nickname'], d['address'],
+                d['master_key_ed25519']),
+            d['circ'], d['dest_url'], d['scanner'],
+            msg=d['msg'], t=d['time'])
+
+    def to_dict(self):
+        d = super().to_dict()
+        return d
+
+
+class ResultErrorDestination(ResultError):
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+
+    @property
+    def type(self):
+        return _ResultType.ErrorSecondRelay
+
+    @staticmethod
+    def from_dict(d):
+        assert isinstance(d, dict)
+        return ResultErrorSecondRelay(
+            Result.Relay(
+                d['fingerprint'], d['nickname'], d['address'],
+                d['master_key_ed25519']),
             d['circ'], d['dest_url'], d['scanner'],
             msg=d['msg'], t=d['time'])
 
