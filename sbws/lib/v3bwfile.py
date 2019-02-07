@@ -344,6 +344,10 @@ class V3BWLine(object):
         if not len(results_recent) >= min_num:
             # log.debug('The number of results is less than %s', min_num)
             return None
+
+        kwargs['relay_recent_measurement_exclusion_count'] = \
+            len(success_results) - len(results_recent)
+
         rtt = cls.rtt_from_results(results_recent)
         if rtt:
             kwargs['rtt'] = rtt
