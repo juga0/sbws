@@ -6,6 +6,7 @@ import copy
 import logging
 import math
 import os
+from enum import IntEnum
 from itertools import combinations
 from statistics import median, mean
 from stem.descriptor import parse_file
@@ -39,6 +40,11 @@ BANDWIDTH_HEADER_KEY_VALUES_MONITOR = [
     # 4.6 header: the number of successful results, created in the last 5 days,
     # that were excluded by a rule
     'recent_measurement_exclusion_count',
+    # Number of relays that were excluded by each filter
+    'recent_measurement_exclusion_count_not_success_results',
+    'recent_measurement_exclusion_count_not_distanciated_results',
+    'recent_measurement_exclusion_count_not_recent_results',
+    'recent_measurement_exclusion_count_not_min_num_results',
 ]
 BANDWIDTH_HEADER_KEY_VALUES_INIT = ['earliest_bandwidth', 'generator_started']\
     + STATS_KEYVALUES \
@@ -80,6 +86,13 @@ BW_KEYVALUES_INT = ['bw', 'rtt', 'success', 'error_stream',
                     'error_circ', 'error_misc'] + BW_KEYVALUES_EXTRA_BWS \
                    + BANDWIDTH_LINE_KEY_VALUES_MONITOR
 BW_KEYVALUES = BW_KEYVALUES_BASIC + BW_KEYVALUES_EXTRA
+
+
+class ExclusionReason(IntEnum):
+    NOT_SUCCESS_RESULTS = 0
+    NOT_DISTANCIATED_RESULTS = 1
+    NOT_RECENT_RESULTS = 2
+    NOT_MIN_NUM_RESULTS = 3
 
 
 def round_sig_dig(n, digits=PROP276_ROUND_DIG):
@@ -290,6 +303,11 @@ class V3BWHeader(object):
         self.recent_measurement_exclusion_count = \
             str(recent_measurement_exclusion_count)
 
+    def add_relays_excluded_reasons(self, exclusion_dict):
+        for k, v in exclusion_dict.items():
+            setattr(self, 'recent_measurement_exclusion_count_' + k.lower(),
+                    str(v))
+
 
 class V3BWLine(object):
     """
@@ -335,19 +353,19 @@ class V3BWLine(object):
 
         success_results = [r for r in results if isinstance(r, ResultSuccess)]
         if not success_results:
-            return None
+            return None, ExclusionReason.NOT_SUCCESS_RESULTS
         results_away = \
             cls.results_away_each_other(success_results, secs_away)
         if not results_away:
-            return None
+            return None, ExclusionReason.NOT_DISTANCIATED_RESULTS
         # log.debug("Results away from each other: %s",
         #           [unixts_to_isodt_str(r.time) for r in results_away])
         results_recent = cls.results_recent_than(results_away, secs_recent)
         if not results_recent:
-            return None
+            return None, ExclusionReason.NOT_RECENT_RESULTS
         if not len(results_recent) >= min_num:
             # log.debug('The number of results is less than %s', min_num)
-            return None
+            return None, ExclusionReason.NOT_MIN_NUM_RESULTS
 
         kwargs['relay_recent_measurement_exclusion_count'] = \
             len(success_results) - len(results_recent)
@@ -373,7 +391,7 @@ class V3BWLine(object):
         kwargs['desc_bw_obs_mean'] = \
             cls.desc_bw_obs_mean_from_results(results_recent)
         bwl = cls(node_id, bw, **kwargs)
-        return bwl
+        return bwl, None
 
     @classmethod
     def from_data(cls, data, fingerprint):
@@ -578,12 +596,19 @@ class V3BWFile(object):
         number_consensus_relays = cls.read_number_consensus_relays(
             consensus_path)
         state = State(state_fpath)
+        exclusion_dict = {}
         for fp, values in results.items():
             # log.debug("Relay fp %s", fp)
-            line = V3BWLine.from_results(values, secs_recent, secs_away,
-                                         min_num)
+            line, reason = V3BWLine.from_results(values, secs_recent,
+                                                 secs_away, min_num)
             if line is not None:
                 bw_lines_raw.append(line)
+            else:
+                exclusion_dict[reason.name] = \
+                    exclusion_dict.get(reason.name, 0) + 1
+
+        # Count the relays that were excluded by a reason
+        header.add_relays_excluded_reasons(exclusion_dict)
 
         # Count the relays that are excluded after filtering.
         recent_measurement_exclusion_count = \
