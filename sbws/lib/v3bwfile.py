@@ -42,6 +42,9 @@ BANDWIDTH_HEADER_KEY_VALUES_MONITOR = [
     # 3.7 header: the number of times that sbws has tried to measure any relay,
     # since the last bandwidth file, but it didn't work
     'new_measurement_failure_count',
+    # It's easier to count the number of relays that failed to be measured
+    # (all their measurements are failures) in the last 5 days
+    'recent_measurement_failure_count',
 ]
 BANDWIDTH_HEADER_KEY_VALUES_INIT = EXTRA_ARG_KEYVALUES \
     + STATS_KEYVALUES \
@@ -181,6 +184,12 @@ class V3BWHeader(object):
         if generator_started is not None:
             kwargs['generator_started'] = generator_started
         kwargs['recent_measurement_attempt_count'] = str(len(results.keys()))
+        recent_measurement_failure_count = 0
+        for fp, result_list in results.items():
+            if not [r for r in result_list if isinstance(r, ResultSuccess)]:
+                recent_measurement_failure_count += 1
+        kwargs['recent_measurement_failure_count'] = \
+            str(recent_measurement_failure_count)
         h = cls(timestamp, **kwargs)
         return h
 
