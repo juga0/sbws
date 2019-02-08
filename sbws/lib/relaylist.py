@@ -135,7 +135,9 @@ class RelayList:
     transparently in the background. Provides useful interfaces for getting
     only relays of a certain type.
     '''
-    REFRESH_INTERVAL = 300  # seconds
+    # There is a new consensus every hour.
+    # Assume that every time the list is refreshed, the consensus is new.
+    REFRESH_INTERVAL = 60 * 60  # seconds
 
     def __init__(self, args, conf, controller):
         self._controller = controller
