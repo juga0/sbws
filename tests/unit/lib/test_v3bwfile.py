@@ -46,7 +46,9 @@ raw_bwl_str = "bw=56 bw_mean=61423 bw_median=55656 "\
     "error_second_relay=0 error_stream=1 " \
     "master_key_ed25519=g+Shk00y9Md0hg1S6ptnuc/wWKbADBgdjT0Kg+TSF3s " \
     "nick=A " \
-    "node_id=$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA rtt=456 success=1 " \
+    "node_id=$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA "\
+    "relay_recent_measurement_attempt_count=2 "\
+    "rtt=456 success=1 " \
     "time=2018-04-17T14:09:07\n"
 
 v3bw_str = header_extra_str + raw_bwl_str
@@ -230,6 +232,8 @@ def test_from_results_read(datadir, tmpdir, conf, args):
     expected_header = V3BWHeader(timestamp_l,
                                  earliest_bandwidth=earliest_bandwidth,
                                  latest_bandwidth=latest_bandwidth)
+    expected_header.recent_measurement_attempt_count = '1'
+    expected_header.recent_measurement_failure_count = '0'
     raw_bwls = [V3BWLine.from_results(results[fp]) for fp in results]
     # Scale BWLines using torflow method, since it's the default and BWLines
     # bandwidth is the raw bandwidth.
