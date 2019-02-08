@@ -57,6 +57,9 @@ BANDWIDTH_HEADER_KEY_VALUES_MONITOR = [
     # It's easier to count the number of relays that failed to be measured
     # (all their measurements are failures) in the last 5 days
     'recent_measurement_failure_count',
+    # 1.1 header: the number of different consensuses, that sbws has seen,
+    # since the last bandwidth file
+    'new_consensus_count',
 ]
 BANDWIDTH_HEADER_KEY_VALUES_INIT = ['earliest_bandwidth', 'generator_started']\
     + STATS_KEYVALUES \
@@ -102,6 +105,12 @@ BANDWIDTH_LINE_KEY_VALUES_MONITOR = [
     # Assuming ResultDump now stores any possible error, this would be the
     # sum of all the error-* KeyValues
     'relay_new_measurement_failure_count',
+    # 1.2 relay: the number of different consensuses, that sbws has seen,
+    # since the last bandwidth file, that have this relay
+    'relay_in_new_consensus_count',
+    # It's easier to calculate the number of different consensuses
+    # that sbws has seen in the last 5 days, that have this relay
+    'relay_in_recent_consensus_count',
 ]
 BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS \
                + BANDWIDTH_LINE_KEY_VALUES_MONITOR
@@ -380,6 +389,11 @@ class V3BWLine(object):
             kwargs['master_key_ed25519'] = results[0].master_key_ed25519
         kwargs['time'] = cls.last_time_from_results(results)
         kwargs.update(cls.result_types_from_results(results))
+        consensuses_count = [r.consensus_count for r in results
+                             if getattr(r, 'consensus_count', None)]
+        if consensuses_count:
+            consensus_count = max(consensuses_count)
+            kwargs['relay_in_recent_consensus_count'] = consensus_count
 
         kwargs['relay_recent_measurement_attempt_count'] = len(results)
 

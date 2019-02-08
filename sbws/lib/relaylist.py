@@ -24,9 +24,11 @@ class Relay:
         if ns is not None:
             assert isinstance(ns, RouterStatusEntryV3)
             self._ns = ns
+            self.consensus_count = 1
         else:
             try:
                 self._ns = cont.get_network_status(fp, default=None)
+                self.consensus_count = 1
             except (DescriptorUnavailable, ControllerError) as e:
                 log.exception("Exception trying to get ns %s", e)
                 self._ns = None
@@ -48,6 +50,10 @@ class Relay:
         if not self._ns:
             return None
         return getattr(self._ns, attr, None)
+
+    @property
+    def increment_consensus_count(self):
+        self.consensus_count += 1
 
     @property
     def nickname(self):
@@ -129,7 +135,9 @@ class RelayList:
     transparently in the background. Provides useful interfaces for getting
     only relays of a certain type.
     '''
-    REFRESH_INTERVAL = 300  # seconds
+    # There is a new consensus every hour.
+    # Assume that every time the list is refreshed, the consensus is new.
+    REFRESH_INTERVAL = 60 * 60  # seconds
 
     def __init__(self, args, conf, controller):
         self._controller = controller
@@ -207,8 +215,39 @@ class RelayList:
             return []
         return relays
 
+    @staticmethod
+    def relay_with_fingerprint_in_list(relays, fingerprint):
+        relay = [r for r in relays if r.fingerprint == fingerprint]
+        if relay:
+            return relay[0]
+        return None
+
+    def update_relay_list(self, new_relays):
+        # If there was not already a list of relays, consensus_count will be
+        # 1 in new_relays
+        old_fps = [r.fingerprint for r in getattr(self, '_relays', [])]
+        new_fps = [r.fingerprint for r in new_relays]
+        fps_to_rm = set(old_fps).difference(set(new_fps))
+        log.debug("Number of relays no longer in the consensus: %s",
+                  len(fps_to_rm))
+        fps_to_add = set(new_fps).difference(set(old_fps))
+        log.debug("Number of relays new in the consensus: %s",
+                  len(fps_to_add))
+        fps_to_increment = set(old_fps).intersection(set(new_fps))
+
+        updated_relays = []
+        for fp in fps_to_add:
+            r = self.relay_with_fingerprint_in_list(new_relays, fp)
+            updated_relays.append(r)
+        for fp in fps_to_increment:
+            r = self.relay_with_fingerprint_in_list(self._relays, fp)
+            r.increment_consensus_count
+            updated_relays.append(r)
+        return updated_relays
+
     def _refresh(self):
-        self._relays = self._init_relays()
+        new_relays = self._init_relays()
+        self._relays = self.update_relay_list(new_relays)
         self._last_refresh = time.time()
 
     def exits_not_bad_allowing_port(self, port):

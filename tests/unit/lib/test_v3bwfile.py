@@ -46,6 +46,7 @@ raw_bwl_str = "bw=56 bw_mean=61423 bw_median=55656 "\
     "master_key_ed25519=g+Shk00y9Md0hg1S6ptnuc/wWKbADBgdjT0Kg+TSF3s " \
     "nick=A " \
     "node_id=$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA "\
+    "relay_in_recent_consensus_count=1 "\
     "relay_recent_measurement_attempt_count=2 "\
     "relay_recent_measurement_exclusion_count=0 "\
     "rtt=456 success=1 " \
