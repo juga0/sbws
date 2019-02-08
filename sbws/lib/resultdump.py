@@ -216,7 +216,8 @@ class Result:
             self.consensus_bandwidth_is_unmeasured = \
                 consensus_bandwidth_is_unmeasured
 
-    def __init__(self, relay, circ, dest_url, scanner_nick, t=None):
+    def __init__(self, relay, circ, dest_url, scanner_nick, t=None,
+                 consensus_count=None):
         self._relay = Result.Relay(relay.fingerprint, relay.nickname,
                                    relay.address, relay.master_key_ed25519,
                                    relay.average_bandwidth,
@@ -228,6 +229,8 @@ class Result:
         self._dest_url = dest_url
         self._scanner = scanner_nick
         self._time = time.time() if t is None else t
+        self.consensus_count = 1 if consensus_count is None \
+            else consensus_count
 
     @property
     def type(self):
@@ -301,6 +304,7 @@ class Result:
             'type': self.type,
             'scanner': self.scanner,
             'version': self.version,
+            'consensus_count': self.consensus_count,
         }
 
     @staticmethod
@@ -370,7 +374,8 @@ class ResultError(Result):
                 d['fingerprint'], d['nickname'], d['address'],
                 d['master_key_ed25519']),
             d['circ'], d['dest_url'], d['scanner'],
-            msg=d['msg'], t=d['time'])
+            msg=d['msg'], t=d['time'],
+            consensus_count=d.get('consensus_count', None))
 
     def to_dict(self):
         d = super().to_dict()
@@ -411,7 +416,8 @@ class ResultErrorCircuit(ResultError):
                 d['fingerprint'], d['nickname'], d['address'],
                 d['master_key_ed25519']),
             d['circ'], d['dest_url'], d['scanner'],
-            msg=d['msg'], t=d['time'])
+            msg=d['msg'], t=d['time'],
+            consensus_count=d.get('consensus_count', None))
 
     def to_dict(self):
         d = super().to_dict()
@@ -434,7 +440,8 @@ class ResultErrorStream(ResultError):
                 d['fingerprint'], d['nickname'], d['address'],
                 d['master_key_ed25519']),
             d['circ'], d['dest_url'], d['scanner'],
-            msg=d['msg'], t=d['time'])
+            msg=d['msg'], t=d['time'],
+            consensus_count=d.get('consensus_count', None))
 
     def to_dict(self):
         d = super().to_dict()
@@ -470,7 +477,8 @@ class ResultErrorAuth(ResultError):
                 d['fingerprint'], d['nickname'], d['address'],
                 d['master_key_ed25519']),
             d['circ'], d['dest_url'], d['scanner'],
-            msg=d['msg'], t=d['time'])
+            msg=d['msg'], t=d['time'],
+            consensus_count=d.get('consensus_count', None))
 
     def to_dict(self):
         d = super().to_dict()
@@ -507,7 +515,7 @@ class ResultSuccess(Result):
                 d.get('consensus_bandwidth'),
                 d.get('consensus_bandwidth_is_unmeasured')),
             d['circ'], d['dest_url'], d['scanner'],
-            t=d['time'])
+            t=d['time'], consensus_count=d.get('consensus_count', None))
 
     def to_dict(self):
         d = super().to_dict()
