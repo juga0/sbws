@@ -45,7 +45,9 @@ raw_bwl_str = "bw=56 bw_mean=61423 bw_median=55656 "\
     "desc_bw_obs_mean=524288 error_circ=0 error_misc=0 error_stream=1 " \
     "master_key_ed25519=g+Shk00y9Md0hg1S6ptnuc/wWKbADBgdjT0Kg+TSF3s " \
     "nick=A " \
-    "node_id=$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA rtt=456 success=1 " \
+    "node_id=$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA "\
+    "relay_in_recent_consensus_count=1 "\
+    "rtt=456 success=1 " \
     "time=2018-04-17T14:09:07\n"
 
 v3bw_str = header_extra_str + raw_bwl_str
