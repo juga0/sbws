@@ -67,6 +67,9 @@ BANDWIDTH_LINE_KEY_VALUES_MONITOR = [
     # 1.2 relay: the number of different consensuses, that sbws has seen,
     # since the last bandwidth file, that have this relay
     'relay_in_new_consensus_count',
+    # It's easier to calculate the number of different consensuses
+    # that sbws has seen in the last 5 days, that have this relay
+    'relay_in_recent_consensus_count',
 ]
 BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS \
                + BANDWIDTH_LINE_KEY_VALUES_MONITOR
@@ -330,6 +333,11 @@ class V3BWLine(object):
             kwargs['master_key_ed25519'] = results[0].master_key_ed25519
         kwargs['time'] = cls.last_time_from_results(results)
         kwargs.update(cls.result_types_from_results(results))
+        consensuses_count = [r.consensus_count for r in results
+                             if getattr(r, 'consensus_count', None)]
+        if consensuses_count:
+            consensus_count = max(consensuses_count)
+            kwargs['relay_in_recent_consensus_count'] = consensus_count
 
         success_results = [r for r in results if isinstance(r, ResultSuccess)]
         if not success_results:
