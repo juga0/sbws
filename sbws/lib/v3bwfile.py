@@ -36,6 +36,7 @@ BANDWIDTH_HEADER_KEY_VALUES_MONITOR = [
     # 1.1 header: the number of different consensuses, that sbws has seen,
     # since the last bandwidth file
     'new_consensus_count',
+    'recent_consensus_count',
 ]
 BANDWIDTH_HEADER_KEY_VALUES_INIT = ['earliest_bandwidth', 'generator_started']\
     + STATS_KEYVALUES \
@@ -163,12 +164,16 @@ class V3BWHeader(object):
         kwargs = dict()
         latest_bandwidth = cls.latest_bandwidth_from_results(results)
         earliest_bandwidth = cls.earliest_bandwidth_from_results(results)
+        # NOTE: Blocking, reads file
         generator_started = cls.generator_started_from_file(state_fpath)
+        consensus_count = cls.consensus_count_from_file(state_fpath)
         timestamp = str(latest_bandwidth)
         kwargs['latest_bandwidth'] = unixts_to_isodt_str(latest_bandwidth)
         kwargs['earliest_bandwidth'] = unixts_to_isodt_str(earliest_bandwidth)
         if generator_started is not None:
             kwargs['generator_started'] = generator_started
+        if consensus_count is not None:
+            kwargs['recent_consensus_count'] = str(consensus_count)
         h = cls(timestamp, **kwargs)
         return h
 
@@ -222,6 +227,14 @@ class V3BWHeader(object):
         state = State(state_fpath)
         if 'scanner_started' in state:
             return state['scanner_started']
+        else:
+            return None
+
+    @staticmethod
+    def consensus_count_from_file(state_fpath):
+        state = State(state_fpath)
+        if 'consensus_count' in state:
+            return state['consensus_count']
         else:
             return None
 
