@@ -201,7 +201,7 @@ class RelayList:
     '''
 
     def __init__(self, args, conf, controller,
-                 measurements_period=MEASUREMENTS_PERIOD):
+                 measurements_period=MEASUREMENTS_PERIOD, state=None):
         self._controller = controller
         self.rng = random.SystemRandom()
         self._refresh_lock = Lock()
@@ -212,6 +212,7 @@ class RelayList:
         # the relays' fingerprint.
         self._relays = []
         self._measurements_period = measurements_period
+        self._state = state
         self._refresh()
 
     def _need_refresh(self):
@@ -334,6 +335,13 @@ class RelayList:
     def _refresh(self):
         # Set a new list of relays.
         self._relays = self._init_relays()
+
+        log.info("Number of consensuses obtained in the last %s days: %s.",
+                 int(self._measurements_period / 24 / 60 / 60),
+                 self.consensus_count)
+        # NOTE: blocking, writes to file!
+        if self._state is not None:
+            self._state['consensus_count'] = self.consensus_count
 
     @property
     def consensus_count(self):
