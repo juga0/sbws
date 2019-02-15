@@ -7,6 +7,8 @@ import random
 import logging
 from threading import Lock
 
+from ..globals import MEASUREMENTS_PERIOD
+
 log = logging.getLogger(__name__)
 
 
@@ -116,6 +118,10 @@ class Relay:
             return getattr(network_status_document, 'valid_after', None)
         return None
 
+    @property
+    def last_consensus(self):
+        return self._consensus_timestamps[-1]
+
     def set_consensus_timestamps(self, previous_timestamps, last_timestamp):
         self._consensus_timestamps = previous_timestamps
         self._consensus_timestamps.append(last_timestamp)
@@ -143,7 +149,8 @@ class RelayList:
     only relays of a certain type.
     '''
 
-    def __init__(self, args, conf, controller):
+    def __init__(self, args, conf, controller,
+                 measurements_period=MEASUREMENTS_PERIOD):
         self._controller = controller
         self.rng = random.SystemRandom()
         self._refresh_lock = Lock()
@@ -153,6 +160,7 @@ class RelayList:
         # In future refactor, change to a dictionary, where the keys are
         # the relays' fingerprint.
         self._relays = []
+        self._measurements_period = measurements_period
         self._refresh()
 
     def _need_refresh(self):
@@ -240,6 +248,15 @@ class RelayList:
             return []
         return relays
 
+    def remove_old_consensus_timestamps(self, consensus_timestamps):
+        oldest_date = datetime.utcnow() - timedelta(self._measurements_period)
+        [consensus_timestamps.remove(i)
+         for i, t in enumerate(consensus_timestamps) if t < oldest_date]
+
+    @property
+    def _remove_old_consensus_timestamps(self):
+        self.remove_old_consensus_timestamps(self._consensus_timestamps)
+
     @property
     def _update_consensus_timestamps(self):
         # The relays' network status document V3 should have the consensus
@@ -266,6 +283,7 @@ class RelayList:
         for r in self._relays:
             relay_previous_timestamps = \
                 previous_timestamps.get(r.fingerprint, [])
+            self.remove_old_consensus_timestamps(relay_previous_timestamps)
             # Then set old ones and last one.
             r.set_consensus_timestamps(relay_previous_timestamps,
                                        last_timestamp)
@@ -279,6 +297,7 @@ class RelayList:
             self._obtain_relays_previous_consensus_timestamps
         self._relays = self._init_relays()
         self._update_consensus_timestamps
+        self._remove_old_consensus_timestamps
         self._update_relays_consensus_timestamps(
             relays_previous_consensus_timestamps, self.last_consensus
             )
