@@ -173,6 +173,10 @@ class Relay:
         self._set_new_consensus_timestamps(timestamp)
         self._remove_old_consensus_timestamps
 
+    @property
+    def consensus_count(self):
+        return len(self._consensus_timestamps)
+
     def can_exit_to_port(self, port):
         """
         Returns True if the relay has an exit policy and the policy accepts
@@ -330,6 +334,10 @@ class RelayList:
     def _refresh(self):
         # Set a new list of relays.
         self._relays = self._init_relays()
+
+    @property
+    def consensus_count(self):
+        return len(self._consensus_timestamps)
 
     def exits_not_bad_allowing_port(self, port):
         return [r for r in self.exits
