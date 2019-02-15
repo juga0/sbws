@@ -39,6 +39,7 @@ class Relay:
                 self._desc = cont.get_server_descriptor(fp, default=None)
             except (DescriptorUnavailable, ControllerError) as e:
                 log.exception("Exception trying to get desc %s", e)
+        self._consensus_timestamps = []
 
     def _from_desc(self, attr):
         if not self._desc:
@@ -115,6 +116,10 @@ class Relay:
             return getattr(network_status_document, 'valid_after', None)
         return None
 
+    def set_consensus_timestamps(self, previous_timestamps, last_timestamp):
+        self._consensus_timestamps = previous_timestamps
+        self._consensus_timestamps.append(last_timestamp)
+
     def can_exit_to_port(self, port):
         """
         Returns True if the relay has an exit policy and the policy accepts
@@ -144,6 +149,10 @@ class RelayList:
         self._refresh_lock = Lock()
         # To track all the consensus seen.
         self._consensus_timestamps = []
+        # Initialize so that there's no error trying to access to it.
+        # In future refactor, change to a dictionary, where the keys are
+        # the relays' fingerprint.
+        self._relays = []
         self._refresh()
 
     def _need_refresh(self):
@@ -266,8 +275,13 @@ class RelayList:
         # information of the consensus attributes for each relay.
         # On future refactor, just update them with new values and add the
         # new ones.
+        relays_previous_consensus_timestamps = \
+            self._obtain_relays_previous_consensus_timestamps
         self._relays = self._init_relays()
         self._update_consensus_timestamps
+        self._update_relays_consensus_timestamps(
+            relays_previous_consensus_timestamps, self.last_consensus
+            )
 
     def exits_not_bad_allowing_port(self, port):
         return [r for r in self.exits
