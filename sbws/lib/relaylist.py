@@ -1,8 +1,9 @@
+from datetime import datetime, timedelta
+
 from stem.descriptor.router_status_entry import RouterStatusEntryV3
 from stem.descriptor.server_descriptor import ServerDescriptor
 from stem import Flag, DescriptorUnavailable, ControllerError
 import random
-import time
 import logging
 from threading import Lock
 
@@ -107,6 +108,13 @@ class Relay:
             return None
         return key.rstrip('=')
 
+    @property
+    def consensus_valid_after(self):
+        network_status_document = self._from_ns('document')
+        if network_status_document:
+            return getattr(network_status_document, 'valid_after', None)
+        return None
+
     def can_exit_to_port(self, port):
         """
         Returns True if the relay has an exit policy and the policy accepts
@@ -129,16 +137,32 @@ class RelayList:
     transparently in the background. Provides useful interfaces for getting
     only relays of a certain type.
     '''
-    REFRESH_INTERVAL = 300  # seconds
 
     def __init__(self, args, conf, controller):
         self._controller = controller
         self.rng = random.SystemRandom()
         self._refresh_lock = Lock()
+        # To track all the consensus seen.
+        self._consensus_timestamps = []
         self._refresh()
 
     def _need_refresh(self):
-        return time.time() >= self._last_refresh + self.REFRESH_INTERVAL
+        # New consensuses happen every hour.
+        return datetime.utcnow() >= \
+            self.last_consensus + timedelta(seconds=60*60)
+
+    @property
+    def last_consensus(self):
+        """Returns the datetime when the last consensus was obtained."""
+        if (getattr(self, "_consensus_timestamps")
+                and self._consensus_timestamps):
+            return self._consensus_timestamps[-1]
+        # If the object was not created from __init__, it won't have
+        # consensus_timestamps attribute or it might be empty.
+        # In this case force new update.
+        # Anytime more than 1h in the past will be old.
+        self._consensus_timestamps = []
+        return datetime.utcnow() - timedelta(seconds=60*61)
 
     @property
     def relays(self):
@@ -207,9 +231,43 @@ class RelayList:
             return []
         return relays
 
+    @property
+    def _update_consensus_timestamps(self):
+        # The relays' network status document V3 should have the consensus
+        # ``valid_after`` attribute that can be used as the date of the last
+        # consensus seen.
+        # Try with several relays in case one fail.
+        for relay in self._relays:
+            if relay.consensus_valid_after is not None:
+                self._consensus_timestamps.append(relay.consensus_valid_after)
+                log.info("Updated relays from valid after consensus: %s",
+                         relay.consensus_valid_after)
+            return
+        log.warning("Could not find date of the last consensus.")
+        # Assuming it was just now:
+        self._consensus_timestamps.append(datetime.utcnow())
+
+    @property
+    def _obtain_relays_previous_consensus_timestamps(self):
+        return dict([(r.fingerprint, r._consensus_timestamps)
+                     for r in self._relays])
+
+    def _update_relays_consensus_timestamps(self, previous_timestamps,
+                                            last_timestamp):
+        for r in self._relays:
+            relay_previous_timestamps = \
+                previous_timestamps.get(r.fingerprint, [])
+            # Then set old ones and last one.
+            r.set_consensus_timestamps(relay_previous_timestamps,
+                                       last_timestamp)
+
     def _refresh(self):
+        # NOTE: this overwrites all relays, so it's lost the previous
+        # information of the consensus attributes for each relay.
+        # On future refactor, just update them with new values and add the
+        # new ones.
         self._relays = self._init_relays()
-        self._last_refresh = time.time()
+        self._update_consensus_timestamps
 
     def exits_not_bad_allowing_port(self, port):
         return [r for r in self.exits
