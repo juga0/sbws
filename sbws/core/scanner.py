@@ -381,17 +381,6 @@ def result_putter(result_dump):
     return closure
 
 
-def result_putter_error(target):
-    ''' Create a function that takes a single argument -- an error from a
-    measurement -- and return that function so it can be used by someone else
-    '''
-    def closure(object):
-        # The only object that can be here if there is not any uncatched
-        # exception is stem.SocketClosed when stopping sbws
-        log.debug(type(object))
-    return closure
-
-
 def main_loop(args, conf, controller, relay_list, circuit_builder, result_dump,
               relay_prioritizer, destinations, max_pending_results, pool):
     """Starts and reuse the threads that measure the relays forever.
@@ -452,11 +441,10 @@ def main_loop(args, conf, controller, relay_list, circuit_builder, result_dump,
             num_relays += 1
             # callback and callback_err must be non-blocking
             callback = result_putter(result_dump)
-            callback_err = result_putter_error(target)
             async_result = pool.apply_async(
                 dispatch_worker_thread,
                 [args, conf, destinations, circuit_builder, relay_list,
-                 target], {}, callback, callback_err)
+                 target], {}, callback)
             pending_results.append(async_result)
             # Instead of letting apply_async to queue the relays in order until
             # a thread has finished, wait here until a thread has finished.
