@@ -504,8 +504,12 @@ def progress(self, main_loop_tstart, consensus_fp_set, measured_fp_set,
              len(measured_fp_set), measured_percent, main_loop_tdelta)
     log.info("%s relays not measured .",
              len(not_measured_fp_set))
-    if new_measured_percent <= measured_percent:
+    # The case when it is equal will only happen when all the relays have been
+    # measured.
+    if (new_measured_percent <= measured_percent
+            and (new_measured_percent < 90)):
         log.warning("There is no progress measuring relays!.")
+    return new_measured_percent
 
 
 def run_speedtest(args, conf):
