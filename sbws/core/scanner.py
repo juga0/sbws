@@ -428,6 +428,16 @@ def main_loop(args, conf, controller, relay_list, circuit_builder, result_dump,
     measured.
 
     """
+    # Variable to count total progress in the last days:
+    # In case it is needed to see which relays are not being measured,
+    # store their fingerprint, not only their number.
+    consensus_fp_set = set()
+    measured_fp_set = set()
+    not_measured_fp_set = set()
+    measured_percent = 0
+    loops_count = 0
+    main_loop_tstart = time.monotonic()
+
     pending_results = []
     # Set the time to wait for a thread to finish as the half of an HTTP
     # request timeout.
@@ -437,7 +447,9 @@ def main_loop(args, conf, controller, relay_list, circuit_builder, result_dump,
         log.debug("Starting a new measurement loop.")
         num_relays = 0
         loop_tstart = time.time()
+        consensus_fp_set.union(set(relay_list.relays_fingerprints))
         for target in relay_prioritizer.best_priority():
+            loops_count += 1
             # Don't start measuring a relay if sbws is stopping.
             if settings.end_event.is_set():
                 break
@@ -450,6 +462,7 @@ def main_loop(args, conf, controller, relay_list, circuit_builder, result_dump,
                 [args, conf, destinations, circuit_builder, relay_list,
                  target], {}, callback, callback_err)
             pending_results.append(async_result)
+            measured_fp_set.add(async_result)
             # Instead of letting apply_async to queue the relays in order until
             # a thread has finished, wait here until a thread has finished.
             while len(pending_results) >= max_pending_results:
@@ -468,7 +481,30 @@ def main_loop(args, conf, controller, relay_list, circuit_builder, result_dump,
             dumpstacks()
         loop_tstop = time.time()
         loop_tdelta = (loop_tstop - loop_tstart) / 60
-        log.debug("Measured %s relays in %s minutes", num_relays, loop_tdelta)
+        log.debug("Measured %s relays out of %s in the last consensus "
+                  "in %s minutes", num_relays, len(consensus_fp_set),
+                  loop_tdelta)
+        measured_percent = progress(main_loop_tstart, consensus_fp_set,
+                                    measured_fp_set, not_measured_fp_set,
+                                    loops_count, measured_percent)
+
+
+def progress(self, main_loop_tstart, consensus_fp_set, measured_fp_set,
+             not_measured_fp_set, loops_count, measured_percent):
+    """Calculate whether there is progress measuring relays.
+    And log the status.
+    """
+    not_measured_fp_set.union(
+        consensus_fp_set.difference(measured_fp_set))
+    main_loop_tdelta = (time.monotonic() - main_loop_tstart) / 60
+    new_measured_percent = len(measured_fp_set) / len(consensus_fp_set) * 100
+    log.debug("Run %s prioritization loops.")
+    log.info("Measured in total %s (%s%%) relays in %s minutes.",
+             len(measured_fp_set), measured_percent, main_loop_tdelta)
+    log.info("%s relays not measured .",
+             len(not_measured_fp_set))
+    if new_measured_percent <= measured_percent:
+        log.warning("There is no progress measuring relays!.")
 
 
 def run_speedtest(args, conf):
