@@ -87,6 +87,9 @@ HTTP_GET_HEADERS = {
     'Accept-Encoding': 'identity',
 }
 DESTINATION_VERIFY_CERTIFICATE = True
+# This number might need adjusted depending on the percentage of circuits and
+# HTTP requests failures.
+MAXIMUM_NUMBER_DESTINATION_FAILURES = 10
 
 
 def fail_hard(*a, **kw):
