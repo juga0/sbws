@@ -8,6 +8,9 @@ from stem import __version__ as stem_version
 from sbws import __version__
 
 
+from collections import OrderedDict
+
+
 log = logging.getLogger(__name__)
 
 RESULT_VERSION = 4
@@ -32,6 +35,13 @@ TORRC_STARTING_POINT = {
     'LogTimeGranularity': '1',
     'ProtocolWarnings': '1',
 }
+
+TORRC_RUNTIME_OPTIONS = {
+    '__DisablePredictedCircuits': '1',
+    '__LeaveStreamsUnattached': '1',
+}
+
+TORRC_OPTIONS_CAN_FAIL = OrderedDict({'ConnectionPadding': '0'})
 
 PKG_DIR = os.path.abspath(os.path.dirname(__file__))
 DEFAULT_CONFIG_PATH = os.path.join(PKG_DIR, 'config.default.ini')

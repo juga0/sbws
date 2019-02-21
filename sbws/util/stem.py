@@ -12,7 +12,8 @@ import copy
 import logging
 import os
 from sbws.globals import fail_hard
-from sbws.globals import TORRC_STARTING_POINT
+from sbws.globals import (TORRC_STARTING_POINT, TORRC_RUNTIME_OPTIONS,
+                          TORRC_OPTIONS_CAN_FAIL)
 
 log = logging.getLogger(__name__)
 stream_building_lock = RLock()
@@ -74,8 +75,7 @@ def init_controller(port=None, path=None, set_custom_stream_settings=True):
             return None, 'Unable to reach tor on control socket'
     assert c is not None
     if set_custom_stream_settings:
-        c.set_conf('__DisablePredictedCircuits', '1')
-        c.set_conf('__LeaveStreamsUnattached', '1')
+        set_torrc_runtime_options(c)
     return c, ''
 
 
@@ -164,6 +164,30 @@ def parse_user_torrc_config(torrc, torrc_text):
                   key, value)
     return torrc_dict
 
+def set_torrc_runtime_options(controller):
+    """Set torrc options at runtime."""
+    try:
+        controller.set_options(TORRC_RUNTIME_OPTIONS)
+    # Only the first option that fails will be logged here.
+    # Just log stem's exceptions.
+    except (ControllerError, InvalidRequest, InvalidArguments) as e:
+        log.exception(e)
+        exit(1)
+
+
+def set_torrc_options_can_fail(controller):
+    """Set options that can fail, at runtime.
+    They can be set at launch, but since the may fail because they are not
+    supported in some Tor versions, it's easier to try one by one at runtime
+    and ignore the ones that fail.
+
+    """
+    for k, v in TORRC_OPTIONS_CAN_FAIL.items():
+        try:
+            controller.set_conf(k, v)
+        except InvalidArguments as error:
+            log.debug('Ignoring option not supported by this Tor version. %s',
+                      error)
 
 def launch_tor(conf):
     assert isinstance(conf, ConfigParser)
@@ -197,15 +221,11 @@ def launch_tor(conf):
         fail_hard('Error trying to launch tor: %s', e)
     # And return a controller to it
     cont = _init_controller_socket(conf.getpath('tor', 'control_socket'))
-    # Because we build things by hand and can't set these before Tor bootstraps
-    try:
-        cont.set_conf('__DisablePredictedCircuits', '1')
-        cont.set_conf('__LeaveStreamsUnattached', '1')
-    except (ControllerError, InvalidArguments, InvalidRequest) as e:
-        log.exception("Error trying to launch tor: %s. "
-                      "Maybe the tor directory is being used by other "
-                      "sbws instance?", e)
-        exit(1)
+    # Set options that can fail at runtime
+    set_torrc_options_can_fail(cont)
+    # Set runtime options
+    set_torrc_runtime_options(cont)
+
     log.info('Started and connected to Tor %s via %s', cont.get_version(),
              conf.getpath('tor', 'control_socket'))
     return cont
