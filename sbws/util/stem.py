@@ -164,6 +164,7 @@ def parse_user_torrc_config(torrc, torrc_text):
                   key, value)
     return torrc_dict
 
+
 def set_torrc_runtime_options(controller):
     """Set torrc options at runtime."""
     try:
@@ -188,6 +189,7 @@ def set_torrc_options_can_fail(controller):
         except InvalidArguments as error:
             log.debug('Ignoring option not supported by this Tor version. %s',
                       error)
+
 
 def launch_tor(conf):
     assert isinstance(conf, ConfigParser)
