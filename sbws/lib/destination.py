@@ -1,8 +1,5 @@
 import logging
 import random
-import time
-import os
-from threading import RLock
 import requests
 from urllib.parse import urlparse
 from stem.control import EventType
@@ -10,6 +7,8 @@ from stem.control import EventType
 from sbws.globals import DESTINATION_VERIFY_CERTIFICATE
 import sbws.util.stem as stem_utils
 import sbws.util.requests as requests_utils
+
+from ..globals import MAXIMUM_NUMBER_DESTINATION_FAILURES
 
 log = logging.getLogger(__name__)
 
@@ -83,21 +82,26 @@ def connect_to_destination_over_circuit(dest, circ_id, session, cont, max_dl):
             head = session.head(dest.url, verify=dest.verify)
         except (requests.exceptions.ConnectionError,
                 requests.exceptions.ReadTimeout) as e:
+            dest.set_failure
             return False, 'Could not connect to {} over circ {} {}: {}'.format(
                 dest.url, circ_id, stem_utils.circuit_str(cont, circ_id), e)
         finally:
             stem_utils.remove_event_listener(cont, listener)
     if head.status_code != requests.codes.ok:
+        dest.set_failure
         return False, error_prefix + 'we expected HTTP code '\
             '{} not {}'.format(requests.codes.ok, head.status_code)
     if 'content-length' not in head.headers:
+        dest.set_failure
         return False, error_prefix + 'we except the header Content-Length '\
-                'to exist in the response'
+            'to exist in the response'
     content_length = int(head.headers['content-length'])
     if max_dl > content_length:
+        dest.set_failure
         return False, error_prefix + 'our maximum configured download size '\
             'is {} but the content is only {}'.format(max_dl, content_length)
     log.debug('Connected to %s over circuit %s', dest.url, circ_id)
+    dest.failed = False
     return True, {'content_length': content_length}
 
 
@@ -107,17 +111,39 @@ class Destination:
         u = urlparse(url)
         self._url = u
         self._verify = verify
+        # Flag to record whether this destination failed in the last
+        # measurement.
+        # Failures can't happen if:
+        # - an HTTPS request can not be made over Tor
+        # (which might be the relays fault, not the destination being
+        # unreachable)
+        # - the destination does not support HTTP Range requests.
+        self.failed = False
+        self.consecutive_failures = 0
 
-    def is_usable(self, circ_id, session, cont):
-        ''' Use **connect_to_destination_over_circuit** to determine if this
-        destination is usable and return what it returns. Just a small wrapper.
-        '''
-        if not isinstance(self.verify, bool):
-            if not os.path.isfile(self.verify):
-                return False, '{} is believed to be a CA bundle file on disk '\
-                    'but it does not exist'.format(self.verify)
-        return connect_to_destination_over_circuit(
-            self, circ_id, session, cont, self._max_dl)
+    @property
+    def is_functional(self):
+        """
+        Returns True if there has not been a number consecutive measurements.
+        Otherwise warn about it and return False.
+
+        """
+        if self.consecutive_failures > MAXIMUM_NUMBER_DESTINATION_FAILURES:
+            log.warning("Destination %s is not functional. Please check that "
+                        "it is correct.", self._url)
+            return False
+        return True
+
+    @property
+    def set_failure(self):
+        """Set failed to True and increase the number of consecutive failures.
+        Only if it also failed in the previous measuremnt.
+
+        """
+        # if it failed in the last measurement
+        if self.failed:
+            self.consecutive_failures += 1
+        self.failed = True
 
     @property
     def url(self):
@@ -163,63 +189,10 @@ class DestinationList:
         self._cb = circuit_builder
         self._rl = relay_list
         self._all_dests = dests
-        self._usable_dests = []
-        self._last_usability_test = 0
-        self._usability_test_interval = \
-            conf.getint('destinations', 'usability_test_interval')
-        self._usability_test_timeout = \
-            conf.getfloat('general', 'http_timeout')
-        self._usability_lock = RLock()
 
-    def _should_perform_usability_test(self):
-        return self._last_usability_test + self._usability_test_interval <\
-            time.time()
-
-    def _perform_usability_test(self):
-        self._usability_lock.acquire()
-        log.debug('Perform usability tests')
-        cont = self._cont
-        timeout = self._usability_test_timeout
-        session = requests_utils.make_session(cont, timeout)
-        usable_dests = []
-        for dest in self._all_dests:
-            possible_exits = self._rl.exits_not_bad_allowing_port(dest.port)
-            # Keep the fastest 10% of exits, or 3, whichever is larger
-            num_keep = int(max(3, len(possible_exits) * 0.1))
-            possible_exits = sorted(
-                possible_exits, key=lambda e: e.consensus_bandwidth,
-                reverse=True)
-            exits = possible_exits[0:num_keep]
-            if len(exits) < 1:
-                log.warning("There are no exits to perform usability tests.")
-                continue
-            # Try three times to build a circuit to test this destination
-            circ_id = None
-            for _ in range(0, 3):
-                # Pick a random exit
-                exit = self._rng.choice(exits)
-                circ_id, reason = \
-                    self._cb.build_circuit([None, exit.fingerprint])
-                if circ_id:
-                    break
-            if not circ_id:
-                log.warning('Unable to build a circuit to test the usability '
-                            'of %s, %s', dest.url, reason)
-                continue
-            log.debug('Built circ %s %s to test usability of %s', circ_id,
-                      stem_utils.circuit_str(cont, circ_id), dest.url)
-            is_usable, data = dest.is_usable(circ_id, session, cont)
-            if not is_usable:
-                log.warning(data)
-                self._cb.close_circuit(circ_id)
-                continue
-            assert is_usable
-            log.debug('%s seems usable so we will keep it', dest.url)
-            usable_dests.append(dest)
-            self._cb.close_circuit(circ_id)
-        self._usable_dests = usable_dests
-        self._last_usability_test = time.time()
-        self._usability_lock.release()
+    @property
+    def functional_destinations(self):
+        return [d for d in self._all_dests if d.is_functional]
 
     @staticmethod
     def from_config(conf, circuit_builder, relay_list, controller):
@@ -250,23 +223,10 @@ class DestinationList:
         '''
         Returns the next destination that should be used in a measurement
         '''
-        with self._usability_lock:
-            while True:
-                if self._should_perform_usability_test():
-                    self._perform_usability_test()
-                    log.debug('%s/%s of our configured destinations are '
-                              'usable at this time', len(self._usable_dests),
-                              len(self._all_dests))
-                if len(self._usable_dests) > 0:
-                    break
-                time_till_next_check = self._usability_test_interval + 0.0001
-                log.warning(
-                    'Of our %d configured destinations, none are usable at '
-                    'this time. Sleeping %f seconds on this blocking call '
-                    'to DestinationList.next() until we can check for a '
-                    'usable destination again.', len(self._all_dests),
-                    time_till_next_check)
-                time.sleep(time_till_next_check)
-
-        self._rng.shuffle(self._usable_dests)
-        return self._usable_dests[0]
+        # Do not perform usability tests since a destination is already proven
+        # usable or not in every measurement, and it should depend on a X
+        # number of failures.
+        # This removes the need for an extra lock for every measurement.
+        # Do not change the order of the destinations, just return a
+        # destination.
+        return self._rng.choice(self.functional_destinations)
