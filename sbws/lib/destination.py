@@ -6,7 +6,6 @@ from stem.control import EventType
 
 from sbws.globals import DESTINATION_VERIFY_CERTIFICATE
 import sbws.util.stem as stem_utils
-import sbws.util.requests as requests_utils
 
 from ..globals import MAXIMUM_NUMBER_DESTINATION_FAILURES
 
