@@ -33,10 +33,28 @@ EXTRA_ARG_KEYVALUES = ['software', 'software_version', 'file_created',
 STATS_KEYVALUES = ['number_eligible_relays', 'minimum_number_eligible_relays',
                    'number_consensus_relays', 'percent_eligible_relays',
                    'minimum_percent_eligible_relays']
-KEYVALUES_INT = STATS_KEYVALUES
+BANDWIDTH_HEADER_KEY_VALUES_MONITOR = [
+    # 3.6 header: the number of times that sbws has tried to measure any relay,
+    # since the last bandwidth file
+    'new_measurement_attempt_count',
+    # it's easier to count the number of relays that were attempted to
+    # be measured in the last 5 days.
+    'recent_measurement_attempt_count',
+    # 3.7 header: the number of times that sbws has tried to measure any relay,
+    # since the last bandwidth file, but it didn't work
+    'new_measurement_failure_count',
+    # It's easier to count the number of relays that failed to be measured
+    # (all their measurements are failures) in the last 5 days
+    'recent_measurement_failure_count',
+]
+BANDWIDTH_HEADER_KEY_VALUES_INIT = EXTRA_ARG_KEYVALUES \
+    + STATS_KEYVALUES \
+    + BANDWIDTH_HEADER_KEY_VALUES_MONITOR
+KEYVALUES_INT = STATS_KEYVALUES + BANDWIDTH_HEADER_KEY_VALUES_MONITOR
 # List of all unordered KeyValues currently being used to generate the file
 UNORDERED_KEYVALUES = EXTRA_ARG_KEYVALUES + STATS_KEYVALUES + \
-                      ['latest_bandwidth']
+                      ['latest_bandwidth'] + \
+                      BANDWIDTH_HEADER_KEY_VALUES_MONITOR
 # List of all the KeyValues currently being used to generate the file
 ALL_KEYVALUES = ['version'] + UNORDERED_KEYVALUES
 TERMINATOR = '====='
@@ -55,9 +73,24 @@ BW_KEYVALUES_EXTRA_BWS = ['bw_median', 'bw_mean', 'desc_bw_avg', 'desc_bw_bur',
                           'desc_bw_obs_last', 'desc_bw_obs_mean',
                           'consensus_bandwidth',
                           'consensus_bandwidth_is_unmeasured']
-BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS
+BANDWIDTH_LINE_KEY_VALUES_MONITOR = [
+    # 3.8 relay:  the number of times that sbws has tried to measure
+    # this relay, since the last bandwidth file
+    'relay_new_measurement_attempt_count',
+    # it's easier to calculate this: the total number of times that sbws
+    # has measured this relay, in the last 5 days
+    'relay_recent_measurement_attempt_count',
+    # 3.9 relay:  the number of times that sbws has tried to measure
+    # this relay, since the last bandwidth file, but it didn't work
+    # Assuming ResultDump now stores any possible error, this would be the
+    # sum of all the error-* KeyValues
+    'relay_new_measurement_failure_count',
+]
+BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS \
+               + BANDWIDTH_LINE_KEY_VALUES_MONITOR
 BW_KEYVALUES_INT = ['bw', 'rtt', 'success', 'error_stream',
-                    'error_circ', 'error_misc'] + BW_KEYVALUES_EXTRA_BWS
+                    'error_circ', 'error_misc'] + BW_KEYVALUES_EXTRA_BWS \
+                   + BANDWIDTH_LINE_KEY_VALUES_MONITOR
 BW_KEYVALUES = BW_KEYVALUES_BASIC + BW_KEYVALUES_EXTRA
 
 
@@ -133,7 +166,7 @@ class V3BWHeader(object):
         # same as timestamp
         self.latest_bandwidth = unixts_to_isodt_str(timestamp)
         [setattr(self, k, v) for k, v in kwargs.items()
-         if k in EXTRA_ARG_KEYVALUES]
+         if k in BANDWIDTH_HEADER_KEY_VALUES_INIT]
 
     def __str__(self):
         if self.version.startswith('1.'):
@@ -157,6 +190,13 @@ class V3BWHeader(object):
             kwargs['scanner_country'] = scanner_country
         if destinations_countries is not None:
             kwargs['destinations_countries'] = destinations_countries
+        kwargs['recent_measurement_attempt_count'] = str(len(results.keys()))
+        recent_measurement_failure_count = 0
+        for fp, result_list in results.items():
+            if not [r for r in result_list if isinstance(r, ResultSuccess)]:
+                recent_measurement_failure_count += 1
+        kwargs['recent_measurement_failure_count'] = \
+            str(recent_measurement_failure_count)
         h = cls(timestamp, **kwargs)
         return h
 
@@ -313,7 +353,6 @@ class V3BWLine(object):
         divided by the the time it took to received.
         bw = data (Bytes) / time (seconds)
         """
-        success_results = [r for r in results if isinstance(r, ResultSuccess)]
         # log.debug("Len success_results %s", len(success_results))
         node_id = '$' + results[0].fingerprint
         kwargs = dict()
@@ -322,43 +361,45 @@ class V3BWLine(object):
             kwargs['master_key_ed25519'] = results[0].master_key_ed25519
         kwargs['time'] = cls.last_time_from_results(results)
         kwargs.update(cls.result_types_from_results(results))
-        # useful args for scaling
-        if success_results:
-            results_away = \
-                cls.results_away_each_other(success_results, secs_away)
-            if not results_away:
-                return None
-            # log.debug("Results away from each other: %s",
-            #           [unixts_to_isodt_str(r.time) for r in results_away])
-            results_recent = cls.results_recent_than(results_away, secs_recent)
-            if not results_recent:
-                return None
-            if not len(results_recent) >= min_num:
-                # log.debug('The number of results is less than %s', min_num)
-                return None
-            rtt = cls.rtt_from_results(results_recent)
-            if rtt:
-                kwargs['rtt'] = rtt
-            bw = cls.bw_median_from_results(results_recent)
-            kwargs['bw_mean'] = cls.bw_mean_from_results(results_recent)
-            kwargs['bw_median'] = cls.bw_median_from_results(
+        kwargs['relay_recent_measurement_attempt_count'] = len(results)
+
+        success_results = [r for r in results if isinstance(r, ResultSuccess)]
+        if not success_results:
+            return None
+        results_away = \
+            cls.results_away_each_other(success_results, secs_away)
+        if not results_away:
+            return None
+        # log.debug("Results away from each other: %s",
+        #           [unixts_to_isodt_str(r.time) for r in results_away])
+        results_recent = cls.results_recent_than(results_away, secs_recent)
+        if not results_recent:
+            return None
+        if not len(results_recent) >= min_num:
+            # log.debug('The number of results is less than %s', min_num)
+            return None
+        rtt = cls.rtt_from_results(results_recent)
+        if rtt:
+            kwargs['rtt'] = rtt
+        bw = cls.bw_median_from_results(results_recent)
+        kwargs['bw_mean'] = cls.bw_mean_from_results(results_recent)
+        kwargs['bw_median'] = cls.bw_median_from_results(
+            results_recent)
+        kwargs['desc_bw_avg'] = \
+            cls.desc_bw_avg_from_results(results_recent)
+        kwargs['desc_bw_bur'] = \
+            cls.desc_bw_bur_from_results(results_recent)
+        kwargs['consensus_bandwidth'] = \
+            cls.consensus_bandwidth_from_results(results_recent)
+        kwargs['consensus_bandwidth_is_unmeasured'] = \
+            cls.consensus_bandwidth_is_unmeasured_from_results(
                 results_recent)
-            kwargs['desc_bw_avg'] = \
-                cls.desc_bw_avg_from_results(results_recent)
-            kwargs['desc_bw_bur'] = \
-                cls.desc_bw_bur_from_results(results_recent)
-            kwargs['consensus_bandwidth'] = \
-                cls.consensus_bandwidth_from_results(results_recent)
-            kwargs['consensus_bandwidth_is_unmeasured'] = \
-                cls.consensus_bandwidth_is_unmeasured_from_results(
-                    results_recent)
-            kwargs['desc_bw_obs_last'] = \
-                cls.desc_bw_obs_last_from_results(results_recent)
-            kwargs['desc_bw_obs_mean'] = \
-                cls.desc_bw_obs_mean_from_results(results_recent)
-            bwl = cls(node_id, bw, **kwargs)
-            return bwl
-        return None
+        kwargs['desc_bw_obs_last'] = \
+            cls.desc_bw_obs_last_from_results(results_recent)
+        kwargs['desc_bw_obs_mean'] = \
+            cls.desc_bw_obs_mean_from_results(results_recent)
+        bwl = cls(node_id, bw, **kwargs)
+        return bwl
 
     @classmethod
     def from_data(cls, data, fingerprint):
