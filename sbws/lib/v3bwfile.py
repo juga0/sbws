@@ -85,6 +85,7 @@ BANDWIDTH_LINE_KEY_VALUES_MONITOR = [
     # Assuming ResultDump now stores any possible error, this would be the
     # sum of all the error-* KeyValues
     'relay_new_measurement_failure_count',
+    'error_second_relay', 'error_destination',
 ]
 BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS \
                + BANDWIDTH_LINE_KEY_VALUES_MONITOR
