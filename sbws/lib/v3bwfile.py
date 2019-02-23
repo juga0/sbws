@@ -73,6 +73,7 @@ BANDWIDTH_LINE_KEY_VALUES_MONITOR = [
     # 3.9 relay:  the number of times that sbws has tried to measure
     # this relay, since the last bandwidth file, but it didn't work
     'relay_new_measurement_failure_count',
+    'error_second_relay', 'error_destination',
 ]
 BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS \
                + BANDWIDTH_LINE_KEY_VALUES_MONITOR
