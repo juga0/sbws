@@ -491,7 +491,8 @@ def main_loop(args, conf, controller, relay_list, circuit_builder, result_dump,
         if controller.get_conf('TestingTorNetwork') == '1':
             log.info("In a testing network, exiting after the first loop.")
             # Threads should be closed nicely in some refactor
-            exit(0)
+            stop_threads(signal.SIGTERM, None)
+
 
 
 def run_speedtest(args, conf):
