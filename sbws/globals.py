@@ -80,7 +80,7 @@ MIN_REPORT = 60
 # in the bandwidth lines in percentage
 MAX_BW_DIFF_PERC = 50
 
-BW_LINE_SIZE = 510
+BW_LINE_SIZE = 1022
 
 # Metadata to send in every requests, so that data servers can know which
 # scanners are using them.
