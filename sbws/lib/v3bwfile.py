@@ -6,6 +6,7 @@ import copy
 import logging
 import math
 import os
+from enum import IntEnum
 from itertools import combinations
 from statistics import median, mean
 from stem.descriptor import parse_file
@@ -46,6 +47,17 @@ BANDWIDTH_HEADER_KEY_VALUES_MONITOR = [
     # It's easier to count the number of relays that failed to be measured
     # (all their measurements are failures) in the last 5 days
     'recent_measurement_failure_count',
+    # 4.5 header: the number of successful results, created since
+    # the last bandwidth file, that were excluded by a rule
+    'new_measurement_exclusion_count',
+    # 4.6 header: the number of successful results, created in the last 5 days,
+    # that were excluded by a rule
+    'recent_measurement_exclusion_count',
+    # Number of relays that were excluded by each filter
+    'recent_measurement_exclusion_count_not_success_results',
+    'recent_measurement_exclusion_count_not_distanciated_results',
+    'recent_measurement_exclusion_count_not_recent_results',
+    'recent_measurement_exclusion_count_not_min_num_results',
 ]
 BANDWIDTH_HEADER_KEY_VALUES_INIT = EXTRA_ARG_KEYVALUES \
     + STATS_KEYVALUES \
@@ -86,6 +98,12 @@ BANDWIDTH_LINE_KEY_VALUES_MONITOR = [
     # sum of all the error-* KeyValues
     'relay_new_measurement_failure_count',
     'error_second_relay', 'error_destination',
+    # 4.7 relay:  the number of successful results, created since
+    # the last bandwidth file, that were excluded by a rule, for this relay
+    'relay_new_measurement_exclusion_count',
+    # 4.8 relay:  the number of successful results, created in the last 5 days,
+    # that were excluded by a rule, for this relay
+    'relay_recent_measurement_exclusion_count',
 ]
 BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS \
                + BANDWIDTH_LINE_KEY_VALUES_MONITOR
@@ -93,6 +111,13 @@ BW_KEYVALUES_INT = ['bw', 'rtt', 'success', 'error_stream',
                     'error_circ', 'error_misc'] + BW_KEYVALUES_EXTRA_BWS \
                    + BANDWIDTH_LINE_KEY_VALUES_MONITOR
 BW_KEYVALUES = BW_KEYVALUES_BASIC + BW_KEYVALUES_EXTRA
+
+
+class ExclusionReason(IntEnum):
+    NOT_SUCCESS_RESULTS = 0
+    NOT_DISTANCIATED_RESULTS = 1
+    NOT_RECENT_RESULTS = 2
+    NOT_MIN_NUM_RESULTS = 3
 
 
 def round_sig_dig(n, digits=PROP276_ROUND_DIG):
@@ -312,6 +337,15 @@ class V3BWHeader(object):
         [setattr(self, k, str(v)) for k, v in kwargs.items()
          if k in STATS_KEYVALUES]
 
+    def add_relays_excluded_count(self, recent_measurement_exclusion_count):
+        self.recent_measurement_exclusion_count = \
+            str(recent_measurement_exclusion_count)
+
+    def add_relays_excluded_reasons(self, exclusion_dict):
+        for k, v in exclusion_dict.items():
+            setattr(self, 'recent_measurement_exclusion_count_' + k.lower(),
+                    str(v))
+
 
 class V3BWLine(object):
     """
@@ -319,16 +353,8 @@ class V3BWLine(object):
 
     :param str node_id:
     :param int bw:
-    :param dict kwargs: extra headers. Currently supported:
+    :param dict kwargs: extra attributes.
 
-        - nickname, str
-        - master_key_ed25519, str
-        - rtt, int
-        - time, str
-        - sucess, int
-        - error_stream, int
-        - error_circ, int
-        - error_misc, int
     """
     def __init__(self, node_id, bw, **kwargs):
         assert isinstance(node_id, str)
@@ -362,23 +388,28 @@ class V3BWLine(object):
             kwargs['master_key_ed25519'] = results[0].master_key_ed25519
         kwargs['time'] = cls.last_time_from_results(results)
         kwargs.update(cls.result_types_from_results(results))
+
         kwargs['relay_recent_measurement_attempt_count'] = len(results)
 
         success_results = [r for r in results if isinstance(r, ResultSuccess)]
         if not success_results:
-            return None
+            return None, ExclusionReason.NOT_SUCCESS_RESULTS
         results_away = \
             cls.results_away_each_other(success_results, secs_away)
         if not results_away:
-            return None
+            return None, ExclusionReason.NOT_DISTANCIATED_RESULTS
         # log.debug("Results away from each other: %s",
         #           [unixts_to_isodt_str(r.time) for r in results_away])
         results_recent = cls.results_recent_than(results_away, secs_recent)
         if not results_recent:
-            return None
+            return None, ExclusionReason.NOT_RECENT_RESULTS
         if not len(results_recent) >= min_num:
             # log.debug('The number of results is less than %s', min_num)
-            return None
+            return None, ExclusionReason.NOT_MIN_NUM_RESULTS
+
+        kwargs['relay_recent_measurement_exclusion_count'] = \
+            len(success_results) - len(results_recent)
+
         rtt = cls.rtt_from_results(results_recent)
         if rtt:
             kwargs['rtt'] = rtt
@@ -400,7 +431,7 @@ class V3BWLine(object):
         kwargs['desc_bw_obs_mean'] = \
             cls.desc_bw_obs_mean_from_results(results_recent)
         bwl = cls(node_id, bw, **kwargs)
-        return bwl
+        return bwl, None
 
     @classmethod
     def from_data(cls, data, fingerprint):
@@ -607,12 +638,25 @@ class V3BWFile(object):
         number_consensus_relays = cls.read_number_consensus_relays(
             consensus_path)
         state = State(state_fpath)
+        exclusion_dict = {}
         for fp, values in results.items():
             # log.debug("Relay fp %s", fp)
-            line = V3BWLine.from_results(values, secs_recent, secs_away,
-                                         min_num)
+            line, reason = V3BWLine.from_results(values, secs_recent,
+                                                 secs_away, min_num)
             if line is not None:
                 bw_lines_raw.append(line)
+            else:
+                exclusion_dict[reason.name] = \
+                    exclusion_dict.get(reason.name, 0) + 1
+
+        # Count the relays that were excluded by a reason
+        header.add_relays_excluded_reasons(exclusion_dict)
+
+        # Count the relays that are excluded after filtering.
+        recent_measurement_exclusion_count = \
+            len(results.keys()) - len(bw_lines_raw)
+        header.add_relays_excluded_count(recent_measurement_exclusion_count)
+
         if not bw_lines_raw:
             log.info("After applying restrictions to the raw results, "
                      "there is not any. Scaling can not be applied.")

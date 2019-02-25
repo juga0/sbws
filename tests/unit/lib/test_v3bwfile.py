@@ -54,6 +54,7 @@ raw_bwl_str = "bw=56 bw_mean=61423 bw_median=55656 "\
     "nick=A " \
     "node_id=$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA "\
     "relay_recent_measurement_attempt_count=2 "\
+    "relay_recent_measurement_exclusion_count=0 "\
     "rtt=456 success=1 " \
     "time=2018-04-17T14:09:07\n"
 
@@ -229,7 +230,7 @@ def test_v3bwline_from_results_file(datadir):
         if fp not in d:
             d[fp] = []
         d[fp].append(r)
-    bwl = V3BWLine.from_data(d, fp)
+    bwl, _ = V3BWLine.from_data(d, fp)
     # bw store now B, not KB
     bwl.bw = round(bwl.bw / 1000)
     assert raw_bwl_str == str(bwl)
@@ -242,11 +243,12 @@ def test_from_results_read(datadir, tmpdir, conf, args):
                                  latest_bandwidth=latest_bandwidth)
     expected_header.recent_measurement_attempt_count = '1'
     expected_header.recent_measurement_failure_count = '0'
-    raw_bwls = [V3BWLine.from_results(results[fp]) for fp in results]
+    raw_bwls = [V3BWLine.from_results(results[fp])[0] for fp in results]
     # Scale BWLines using torflow method, since it's the default and BWLines
     # bandwidth is the raw bandwidth.
     expected_bwls = V3BWFile.bw_torflow_scale(raw_bwls)
     expected_f = V3BWFile(expected_header, expected_bwls)
+    expected_f.header.add_relays_excluded_count(0)
     # This way is going to convert bw to KB
     v3bwfile = V3BWFile.from_results(results)
     assert str(expected_f)[1:] == str(v3bwfile)[1:]
@@ -337,7 +339,7 @@ def test_measured_progress_stats(datadir):
     results = load_result_file(str(datadir.join("results_away.txt")))
     for fp, values in results.items():
         # log.debug("Relay fp %s", fp)
-        line = V3BWLine.from_results(values)
+        line, _ = V3BWLine.from_results(values)
         if line is not None:
             bw_lines_raw.append(line)
     assert len(bw_lines_raw) == 3
