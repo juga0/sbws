@@ -26,19 +26,46 @@ log = logging.getLogger(__name__)
 LINE_SEP = '\n'
 KEYVALUE_SEP_V1 = '='
 KEYVALUE_SEP_V2 = ' '
+
+# Header KeyValues
+# =================
 # List of the extra KeyValues accepted by the class
 EXTRA_ARG_KEYVALUES = ['software', 'software_version', 'file_created',
                        'earliest_bandwidth', 'generator_started']
 STATS_KEYVALUES = ['number_eligible_relays', 'minimum_number_eligible_relays',
                    'number_consensus_relays', 'percent_eligible_relays',
                    'minimum_percent_eligible_relays']
-KEYVALUES_INT = STATS_KEYVALUES
+# Added in #29591
+BW_HEADER_KEYVALUES_MONITOR = [
+    # 1.1 header: the number of different consensuses, that sbws has seen,
+    # since the last 5 days
+    'recent_consensus_count',
+    # 3.6 header: the number of times that sbws has tried to measure any relay,
+    # since the last 5 days
+    'recent_measurement_attempt_count',
+    # 3.7 header: the number of times that sbws has tried to measure any relay,
+    # since the last 5 days, but it didn't work
+    'recent_measurement_failure_count',
+    # 4.6 header: the number of successful results, created in the last 5 days,
+    # that were excluded by a rule
+    'recent_measurement_exclusion_count',
+]
+BANDWIDTH_HEADER_KEY_VALUES_INIT = ['earliest_bandwidth', 'generator_started']\
+    + STATS_KEYVALUES \
+    + BW_HEADER_KEYVALUES_MONITOR
+
+KEYVALUES_INT = STATS_KEYVALUES + BW_HEADER_KEYVALUES_MONITOR
 # List of all unordered KeyValues currently being used to generate the file
 UNORDERED_KEYVALUES = EXTRA_ARG_KEYVALUES + STATS_KEYVALUES + \
-                      ['latest_bandwidth']
+                      ['latest_bandwidth'] + \
+                      BW_HEADER_KEYVALUES_MONITOR
 # List of all the KeyValues currently being used to generate the file
 ALL_KEYVALUES = ['version'] + UNORDERED_KEYVALUES
+
 TERMINATOR = '====='
+
+# Bandwidth Lines KeyValues
+# =========================
 # Num header lines in v1.X.X using all the KeyValues
 NUM_LINES_HEADER_V1 = len(ALL_KEYVALUES) + 2
 LINE_TERMINATOR = TERMINATOR + LINE_SEP
@@ -49,7 +76,8 @@ BW_KEYVALUE_SEP_V1 = ' '
 BW_KEYVALUES_BASIC = ['node_id', 'bw']
 BW_KEYVALUES_FILE = BW_KEYVALUES_BASIC + \
                     ['master_key_ed25519', 'nick', 'rtt', 'time',
-                     'success', 'error_stream', 'error_circ', 'error_misc']
+                     'success', 'error_stream', 'error_circ', 'error_misc',
+                     'error_second_relay', 'error_destination']
 BW_KEYVALUES_EXTRA_BWS = ['bw_median', 'bw_mean', 'desc_bw_avg', 'desc_bw_bur',
                           'desc_bw_obs_last', 'desc_bw_obs_mean',
                           'consensus_bandwidth',
@@ -58,6 +86,24 @@ BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS
 BW_KEYVALUES_INT = ['bw', 'rtt', 'success', 'error_stream',
                     'error_circ', 'error_misc'] + BW_KEYVALUES_EXTRA_BWS
 BW_KEYVALUES = BW_KEYVALUES_BASIC + BW_KEYVALUES_EXTRA
+
+# Aded in #292951
+BANDWIDTH_LINE_KEY_VALUES_MONITOR = [
+    # 1.2 relay: the number of different consensuses, that sbws has seen,
+    # since the last 5 days, that have this relay
+    'relay_in_recent_consensus_count',
+    # 3.8 relay:  the number of times that sbws has tried to measure
+    # this relay, since the last 5 days
+    'relay_recent_measurement_attempt_count',
+    # 3.9 relay:  the number of times that sbws has tried to measure
+    # this relay, since the last 5 days, but it didn't work
+    'relay_recent_measurement_failure_count',
+    # 4.8 relay:  the number of successful results, created in the last 5 days,
+    # that were excluded by a rule, for this relay
+    'relay_recent_measurement_exclusion_count',
+]
+BW_KEYVALUES_EXTRA = BW_KEYVALUES_FILE + BW_KEYVALUES_EXTRA_BWS \
+               + BANDWIDTH_LINE_KEY_VALUES_MONITOR
 
 
 def round_sig_dig(n, digits=PROP276_ROUND_DIG):
@@ -132,7 +178,7 @@ class V3BWHeader(object):
         # same as timestamp
         self.latest_bandwidth = unixts_to_isodt_str(timestamp)
         [setattr(self, k, v) for k, v in kwargs.items()
-         if k in EXTRA_ARG_KEYVALUES]
+         if k in BANDWIDTH_HEADER_KEY_VALUES_INIT]
 
     def __str__(self):
         if self.version.startswith('1.'):
