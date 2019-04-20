@@ -6,6 +6,8 @@ import copy
 import logging
 import math
 import os
+import platform
+import ssl
 from itertools import combinations
 from statistics import median, mean
 from stem.descriptor import parse_file
@@ -35,7 +37,8 @@ KEYVALUE_SEP_V2 = ' '
 # List of the extra KeyValues accepted by the class
 EXTRA_ARG_KEYVALUES = ['software', 'software_version', 'file_created',
                        'earliest_bandwidth', 'generator_started',
-                       'scanner_country', 'destinations_countries']
+                       'scanner_country', 'destinations_countries',
+                       'ssl_version', 'system', 'tor_version']
 # number_eligible_relays is the number that ends in the bandwidth file
 # ie, have not been excluded by one of the filters in 4. below
 # They should be call recent_measurement_included_count to be congruent
@@ -94,7 +97,7 @@ BW_HEADER_KEYVALUES_MONITOR = [
 ] + BW_HEADER_KEYVALUES_RECENT_MEASUREMENTS_EXCLUDED
 BANDWIDTH_HEADER_KEY_VALUES_INIT = \
     ['earliest_bandwidth', 'generator_started',
-     'scanner_country', 'destinations_countries']\
+     'scanner_country', 'destinations_countries', 'tor_version']\
     + STATS_KEYVALUES \
     + BW_HEADER_KEYVALUES_MONITOR
 
@@ -258,6 +261,8 @@ class V3BWHeader(object):
         self.version = kwargs.get('version', SPEC_VERSION)
         self.software = kwargs.get('software', 'sbws')
         self.software_version = kwargs.get('software_version', __version__)
+        self.system = kwargs.get('system', platform.system())
+        self.ssl_version = kwargs.get('ssl_version', ssl.OPENSSL_VERSION)
         self.file_created = kwargs.get('file_created', now_isodt_str())
         # latest_bandwidth should not be in kwargs, since it MUST be the
         # same as timestamp
@@ -277,7 +282,10 @@ class V3BWHeader(object):
         latest_bandwidth = cls.latest_bandwidth_from_results(results)
         earliest_bandwidth = cls.earliest_bandwidth_from_results(results)
         # NOTE: Blocking, reads file
+        state = State(state_fpath)
         generator_started = cls.generator_started_from_file(state_fpath)
+        if state.get('tor_version', None):
+            kwargs['tor_version'] = state['tor_version']
         recent_consensus_count = cls.consensus_count_from_file(state_fpath)
         timestamp = str(latest_bandwidth)
         kwargs['latest_bandwidth'] = unixts_to_isodt_str(latest_bandwidth)

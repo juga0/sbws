@@ -28,6 +28,8 @@ destinations_countries_l = KEYVALUE_SEP_V1.join(['destinations_countries',
                                                 destinations_countries])
 software_l = KEYVALUE_SEP_V1.join(['software', 'sbws'])
 software_version_l = KEYVALUE_SEP_V1.join(['software_version', version])
+ssl_version_l = 'ssl_version=OpenSSL 1.1.0j  20 Nov 2018'
+system_l = 'system=Linux'
 file_created = '2018-04-25T13:10:57'
 file_created_l = KEYVALUE_SEP_V1.join(['file_created', file_created])
 latest_bandwidth = '2018-04-17T14:09:07'
@@ -42,7 +44,8 @@ failure_l = KEYVALUE_SEP_V1.join(['recent_measurement_failure_count',
 header_ls = [timestamp_l, version_l, destinations_countries_l, file_created_l,
              latest_bandwidth_l,
              # attempts_l, failure_l,
-             scanner_country_l, software_l, software_version_l, TERMINATOR]
+             scanner_country_l, software_l, software_version_l,
+             ssl_version_l, system_l, TERMINATOR]
 header_str = LINE_SEP.join(header_ls) + LINE_SEP
 earliest_bandwidth = '2018-04-16T14:09:07'
 earliest_bandwidth_l = KEYVALUE_SEP_V1.join(['earliest_bandwidth',
@@ -53,7 +56,8 @@ generator_started_l = KEYVALUE_SEP_V1.join(['generator_started',
 header_extra_ls = [timestamp_l, version_l,
                    earliest_bandwidth_l, file_created_l, generator_started_l,
                    latest_bandwidth_l,
-                   software_l, software_version_l, TERMINATOR]
+                   software_l, software_version_l,
+                   ssl_version_l, system_l, TERMINATOR]
 header_extra_str = LINE_SEP.join(header_extra_ls) + LINE_SEP
 
 # Line produced without any scaling.
@@ -81,7 +85,9 @@ def test_v3bwheader_str():
     """Test header str"""
     header = V3BWHeader(timestamp_l, scanner_country=scanner_country,
                         destinations_countries=destinations_countries,
-                        file_created=file_created)
+                        file_created=file_created,
+                        ssl_version="OpenSSL 1.1.0j  20 Nov 2018",
+                        system="Linux")
     assert header_str == str(header)
 
 
@@ -90,7 +96,9 @@ def test_v3bwheader_extra_str():
     header = V3BWHeader(timestamp_l,
                         file_created=file_created,
                         generator_started=generator_started,
-                        earliest_bandwidth=earliest_bandwidth)
+                        earliest_bandwidth=earliest_bandwidth,
+                        ssl_version="OpenSSL 1.1.0j  20 Nov 2018",
+                        system="Linux")
     assert header_extra_str == str(header)
 
 

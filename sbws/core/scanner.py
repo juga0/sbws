@@ -679,6 +679,7 @@ def run_speedtest(args, conf):
     # When there will be a refactor where conf is global, this can be removed
     # from here.
     state = State(conf.getpath('paths', 'state_fname'))
+    state['tor_version'] = str(controller.get_version())
     # Call only once to initialize http_headers
     settings.init_http_headers(conf.get('scanner', 'nickname'), state['uuid'],
                                str(controller.get_version()))
