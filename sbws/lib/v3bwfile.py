@@ -276,49 +276,35 @@ class V3BWHeader(object):
         kwargs = dict()
         latest_bandwidth = cls.latest_bandwidth_from_results(results)
         earliest_bandwidth = cls.earliest_bandwidth_from_results(results)
-        # NOTE: Blocking, reads file
-        generator_started = cls.generator_started_from_file(state_fpath)
-        recent_consensus_count = cls.consensus_count_from_file(state_fpath)
         timestamp = str(latest_bandwidth)
         kwargs['latest_bandwidth'] = unixts_to_isodt_str(latest_bandwidth)
         kwargs['earliest_bandwidth'] = unixts_to_isodt_str(earliest_bandwidth)
-        if generator_started is not None:
-            kwargs['generator_started'] = generator_started
+
         # To be compatible with older bandwidth files, do not require it.
         if scanner_country is not None:
             kwargs['scanner_country'] = scanner_country
         if destinations_countries is not None:
             kwargs['destinations_countries'] = destinations_countries
-        if recent_consensus_count is not None:
-            kwargs['recent_consensus_count'] = str(recent_consensus_count)
 
-        recent_measurement_attempt_count = \
-            cls.recent_measurement_attempt_count_from_file(state_fpath)
-        if recent_measurement_attempt_count is not None:
-            kwargs['recent_measurement_attempt_count'] = \
-                str(recent_measurement_attempt_count)
+        # NOTE: Blocking, reads file
+        state = State(state_fpath)
+        [kwargs.__setitem__(k, str(state[k]))
+         for k in BW_HEADER_KEYVALUES_MONITOR +
+         ['generator_started', 'tor_version']
+         if state.get(k, None) is not None]
 
         # If it is a failure that is not a ResultError, then
         # failures = attempts - all mesaurements
         # Works only in the case that old measurements files already had
         # measurements count
-        if recent_measurement_attempt_count is not None:
+        if state.get('recent_measurement_attempt_count', None) is not None:
             all_measurements = 0
             for result_list in results.values():
                 all_measurements += len(result_list)
-            measurement_failures = (recent_measurement_attempt_count
+            measurement_failures = (state['recent_measurement_attempt_count']
                                     - all_measurements)
             kwargs['recent_measurement_failure_count'] = \
                 str(measurement_failures)
-
-        priority_lists = cls.recent_priority_list_count_from_file(state_fpath)
-        if priority_lists is not None:
-            kwargs['recent_priority_list_count'] = str(priority_lists)
-
-        priority_relays = \
-            cls.recent_priority_relay_count_from_file(state_fpath)
-        if priority_relays is not None:
-            kwargs['recent_priority_relay_count'] = str(priority_relays)
 
         h = cls(timestamp, **kwargs)
         return h
@@ -363,56 +349,6 @@ class V3BWHeader(object):
         h = cls(lines[0])
         # last line is new line
         return h, lines[1:-1]
-
-    @staticmethod
-    def generator_started_from_file(state_fpath):
-        '''
-        ISO formatted timestamp for the time when the scanner process most
-        recently started.
-        '''
-        state = State(state_fpath)
-        if 'scanner_started' in state:
-            return state['scanner_started']
-        else:
-            return None
-
-    @staticmethod
-    def consensus_count_from_file(state_fpath):
-        state = State(state_fpath)
-        if 'recent_consensus_count' in state:
-            return state['recent_consensus_count']
-        else:
-            return None
-
-    # NOTE: in future refactor store state in the class
-    @staticmethod
-    def recent_measurement_attempt_count_from_file(state_fpath):
-        """
-        Returns the number of times any relay was queued to be measured
-        in the recent (by default 5) days from the state file.
-        """
-        state = State(state_fpath)
-        return state.get('recent_measurement_attempt_count', None)
-
-    @staticmethod
-    def recent_priority_list_count_from_file(state_fpath):
-        """
-        Returns the number of times
-        :meth:`~sbws.lib.relayprioritizer.RelayPrioritizer.best_priority`
-        was run
-        in the recent (by default 5) days from the state file.
-        """
-        state = State(state_fpath)
-        return state.get('recent_priority_list_count', None)
-
-    @staticmethod
-    def recent_priority_relay_count_from_file(state_fpath):
-        """
-        Returns the number of times any relay was "prioritized" to be measured
-        in the recent (by default 5) days from the state file.
-        """
-        state = State(state_fpath)
-        return state.get('recent_priority_relay_count', None)
 
     @staticmethod
     def latest_bandwidth_from_results(results):
