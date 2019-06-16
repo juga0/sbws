@@ -9,6 +9,7 @@ import logging
 from threading import Lock
 
 from ..globals import MEASUREMENTS_PERIOD
+from ..util import timestamp
 
 log = logging.getLogger(__name__)
 
@@ -288,6 +289,35 @@ class Relay:
             self.relay_recent_priority_list_count = 0
         self.relay_recent_priority_list_count += 1
 
+    # NOTE: in a future refactor, a Relay wrapper could keep a `dequeue` of all
+    # the descriptors seen and the timestamp.
+    def set_server_descriptor(self, server_descriptor):
+        """Set the server descriptor of the Relay.
+
+        Every time there's a new descriptor, the Relay object should not be
+        lost, therefore, give a way to keep the object setting the new
+        descriptor.
+        """
+        self._desc = server_descriptor
+
+    # NOTE: in a future refactor, a Relay wrapper could keep a `dequeue` of all
+    # the consensus seen and the timestamp, what would replace the list of
+    # just consensus timestamps.
+    def set_router_status(self, router_status):
+        """Set the router status (from the consensus) of the Relay.
+
+        Every time there's a new descriptor, the Relay object should not be
+        lost, therefore, give a way to keep the object setting the new
+        descriptor.
+        """
+        self._ns = router_status
+
+    def is_old(self, measurements_period):
+        """Whether the last consensus seen for this relay is older than the
+        measurement period.
+        """
+        timestamp.is_old(self.last_consensus_timestamp,
+                         measurements_period)
 
 class RelayList:
     ''' Keeps a list of all relays in the current Tor network and updates it
@@ -415,28 +445,53 @@ class RelayList:
         # Change to stem.descriptor.remote in future refactor.
         network_statuses = c.get_network_statuses()
         new_relays_dict = dict([(r.fingerprint, r) for r in network_statuses])
+        log.debug("Number of relays in the current consensus: %s.",
+                  len(new_relays_dict))
 
         # Find the timestamp of the last consensus.
         timestamp = valid_after_from_network_statuses(network_statuses)
         self._consensus_timestamps.append(timestamp)
         self._remove_old_consensus_timestamps()
-        # Update the relays that were in the previous consensus with the
-        # new timestamp
+
+        # In a future refactor, maybe modify the relays instead of creating new
+        # ones and creating a new list.
         new_relays = []
+        log.debug("Current number of relays being measured %s",
+                  len(self._relays))
+        num_old_relays = 0
         relays = copy.deepcopy(self._relays)
         for r in relays:
+            # Update the relays that were in the previous consensus with the
+            # timestamp, consensus and descriptor
             if r.fingerprint in new_relays_dict.keys():
+                fp = r.fingerprint
                 r.update_consensus_timestamps(timestamp)
-                new_relays_dict.pop(r.fingerprint)
+                r.set_router_status(new_relays_dict[fp])
+                try:
+                    descriptor = c.get_server_descriptor(fp, default=None)
+                except (DescriptorUnavailable, ControllerError) as e:
+                    log.exception("Exception trying to get desc %s", e)
+                r.set_server_descriptor(descriptor)
+                # Add it to the new list
                 new_relays.append(r)
+                # And remove it from the new consensus dict.
+                new_relays_dict.pop(r.fingerprint)
 
+            # #30727: The relay is not in this consensus, but is not old yet.
+            # Keep it, but it can not be updated with the consensus.
+            elif not r.is_old(self._measurements_period):
+                new_relays.append(r)
+            else:
+                num_old_relays =+ 1
+        log.debug("Number of relays not in the curent consensus that were not "
+                  "in the consensus in the last %s days: %s.",
+                  self._measurements_period, num_old_relays)
         # Add the relays that were not in the previous consensus
-        # If there was an relay in some older previous consensus,
-        # it won't get stored, so its previous consensuses are lost,
-        # but probably this is fine for now to don't make it more complicated.
         for fp, ns in new_relays_dict.items():
             r = Relay(ns.fingerprint, c, ns=ns, timestamp=timestamp)
             new_relays.append(r)
+        log.debug("Number of relays to measure after getting a new consensus: "
+                  "%s", len(new_relays))
         return new_relays
 
     def _refresh(self):
