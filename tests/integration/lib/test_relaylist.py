@@ -1,3 +1,5 @@
+import datetime
+
 from sbws.lib.relaylist import Relay
 
 
@@ -20,3 +22,47 @@ def test_relay_properties(persistent_launch_tor):
 def test_relay_list_last_consensus_timestamp(rl):
     assert rl.last_consensus_timestamp == \
         rl._relays[0].last_consensus_timestamp
+
+
+def test_relay_list_add_consensus_timestamp_not_initialized(rl):
+    # Obtain a relay
+    relay = [r for r in rl.relays
+             if r.nickname == 'relay1mbyteMAB'][0]
+    # Obtain the last consensus timestamp from the relay
+    timestamp = relay.last_consensus_timestamp
+    # Fake that the list is None
+    relay._consensus_timestamps = None
+    # Add the consensus timestamp passing the argument
+    relay._add_consensus_timestamp(timestamp)
+    assert relay.last_consensus_timestamp == timestamp
+    # Fake that the list is empty
+    relay._consensus_timestamps = []
+    # Add the consensus timestamp
+    relay._add_consensus_timestamp(timestamp)
+    assert relay.last_consensus_timestamp == timestamp
+
+
+def test_relay_list_add_consensus_timestamp_no_timestamp(rl):
+    # Obtain a relay
+    relay = [r for r in rl.relays
+             if r.nickname == 'relay1mbyteMAB'][0]
+    # Add a consensus timestamp without timestamp argument
+    relay._add_consensus_timestamp()
+    # The last timestamp migth not be like the original one, but there will be
+    # one
+    assert relay.last_consensus_timestamp
+
+
+def test_relay_list_add_consensus_timestamp_older(rl):
+    # Obtain a relay
+    relay = [r for r in rl.relays
+             if r.nickname == 'relay1mbyteMAB'][0]
+    # Obtain the last consensus timestamp from the relay
+    last_consensus_timestamp = relay.last_consensus_timestamp
+    # Create a timestamp that is a day older
+    timestamp = last_consensus_timestamp - datetime.timedelta(days=1)
+    # Add the old consensus timestamp
+    relay._add_consensus_timestamp(timestamp)
+    # The last consensus timestamp is not the added timestamp cause it's in the
+    # past
+    assert relay.last_consensus_timestamp == last_consensus_timestamp
