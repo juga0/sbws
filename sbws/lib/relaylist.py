@@ -171,7 +171,9 @@ class Relay:
 
     @property
     def last_consensus_timestamp(self):
-        if len(self._consensus_timestamps) >= 1:
+        # if the consensus_timestamps list is not None or it has at least 1
+        # item
+        if self._consensus_timestamps:
             return self._consensus_timestamps[-1]
         return None
 
@@ -185,17 +187,15 @@ class Relay:
             log.info('Bad timestamp %s, skipping consensus timestamp '
                      'update for  relay %s', timestamp, self.fingerprint)
             return
-        # The consensus timestamp list was initialized.
-        if self.last_consensus_timestamp is not None:
-            # timestamp is more recent than the most recent stored
-            # consensus timestamp.
+        # The consensus timestamp list is not None or it has at list 1 item
+        if self.last_consensus_timestamp:
             if timestamp > self.last_consensus_timestamp:
                 # Add timestamp
                 self._consensus_timestamps.append(timestamp)
-        # The consensus timestamp list was not initialized.
+        # The consensus timestamp list was None or empty.
         else:
-            # Add timestamp
-            self._consensus_timestamps.append(timestamp)
+            # Set the timestamp
+            self._consensus_timestamps = [timestamp]
 
     def _add_consensus_timestamp(self, timestamp=None):
         """Add the consensus timestamp in which this relay is present.
