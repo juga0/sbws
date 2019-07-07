@@ -171,39 +171,35 @@ class Relay:
 
     @property
     def last_consensus_timestamp(self):
-        if len(self._consensus_timestamps) >= 1:
+        # if the consensus_timestamps list is not None or it has at least 1
+        # item
+        if self._consensus_timestamps:
             return self._consensus_timestamps[-1]
         return None
 
     def _add_consensus_timestamp(self, timestamp=None):
         """Add the consensus timestamp in which this relay is present.
         """
+        # First, determine which timestamp to use
         # It is possible to access to the relay's consensensus Valid-After
         if self.consensus_valid_after is not None:
-            # The consensus timestamp list was initialized.
-            if self.last_consensus_timestamp is not None:
-                # Valid-After is more recent than the most recent stored
-                # consensus timestamp.
-                if self.consensus_valid_after > self.last_consensus_timestamp:
-                    # Add Valid-After
-                    self._consensus_timestamps.append(
-                        self.consensus_valid_after
-                        )
-            # The consensus timestamp list was not initialized.
-            else:
-                # Add Valid-After
-                self._consensus_timestamps.append(self.consensus_valid_after)
-        # If there was already a list the timestamp arg is more recent than
-        # the most recent timestamp stored,
-        elif (self.last_consensus_timestamp is not None
-              and timestamp > self.last_consensus_timestamp):
-            # Add the arg timestamp.
-            self._consensus_timestamps.append(timestamp)
-        # In any other case
+            timestamp = self.consensus_valid_after
+        elif timestamp is None:
+            timestamp = datetime.utcnow().replace(microsecond=0)
+            log.warning('Bad timestamp, using current time for consensus '
+                        'timestamp update for relay %s', self.fingerprint)
+
+        # Second, append the new timestamp if the last is older and the list
+        # was initialized
+        if self.last_consensus_timestamp is not None:
+            if self.last_consensus_timestamp < timestamp:
+                self._consensus_timestamps.append(timestamp)
+            # If the list is initialized but the last consensus is more
+            # more recent, don't do anything
+
+        # Third, if the list is not initialized, initialize it
         else:
-            # Add the current datetime
-            self._consensus_timestamps.append(
-                datetime.utcnow().replace(microsecond=0))
+            self._consensus_timestamps = [timestamp]
 
     def _remove_old_consensus_timestamps(
             self, measurements_period=MEASUREMENTS_PERIOD):
