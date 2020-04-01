@@ -469,7 +469,9 @@ class RelayList:
         chosen as a second hop by picking the lowest bandwidth value available
         from the top 75% of the respective category.
         """
-        # Sort our sets of candidates according to bw, lowest amount first.
+        # Sort our sets of candidates according to bw, lowest amount first. It's
+        # okay to keep things simple for the calculation and go over all exits,
+        # including badexits.
         exit_candidates = sorted(self.exits,
                                  key=lambda r: r.consensus_bandwidth);
         non_exit_candidates = sorted(self.non_exits,
