@@ -1,4 +1,5 @@
 dir-key-certificate-version 3
+dir-address 127.10.0.1:2003
 fingerprint 3668D8876241ADD04B53CAB08E7442BDE6EC9A06
 dir-key-published 2020-06-08 15:17:09
 dir-key-expires 2021-06-08 15:17:09
